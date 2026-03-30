@@ -1,0 +1,3 @@
+export module edna_impl;
+
+export import edna.frontend.lexer;
