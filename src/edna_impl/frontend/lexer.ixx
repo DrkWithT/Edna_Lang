@@ -76,7 +76,6 @@ namespace Edna::Frontend {
 
         [[nodiscard]] Token lex_single(std::string_view source, TokenTag tag) noexcept {
             const auto tk_begin = m_pos;
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
 
@@ -93,7 +92,6 @@ namespace Edna::Frontend {
 
         [[nodiscard]] Token lex_spaces(std::string_view source) noexcept {
             const auto tk_begin = m_pos;
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
 
@@ -107,7 +105,7 @@ namespace Edna::Frontend {
 
             return Token {
                 tk_begin,
-                tk_end - tk_begin + 1,
+                m_pos - tk_begin,
                 tk_line,
                 tk_col,
                 TokenTag::spaces
@@ -118,7 +116,6 @@ namespace Edna::Frontend {
             m_pos++; // skip leading semicolon...
 
             const auto tk_begin = m_pos;
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
 
@@ -132,7 +129,7 @@ namespace Edna::Frontend {
 
             return Token {
                 tk_begin,
-                tk_end - tk_begin + 1,
+                m_pos - tk_begin,
                 tk_line,
                 tk_col,
                 TokenTag::comment
@@ -143,7 +140,6 @@ namespace Edna::Frontend {
             m_pos++; // skip leading semicolon...
 
             const auto tk_begin = m_pos;
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
             auto tk_dots = 0;
@@ -169,7 +165,7 @@ namespace Edna::Frontend {
 
             return Token {
                 tk_begin,
-                tk_end - tk_begin + 1,
+                m_pos - tk_begin,
                 tk_line,
                 tk_col,
                 deduced_token_tag
@@ -207,7 +203,6 @@ namespace Edna::Frontend {
 
             update_location(delim);
 
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
             bool closed = false;
@@ -245,7 +240,7 @@ namespace Edna::Frontend {
 
             return Token {
                 tk_begin,
-                tk_end - tk_begin + 1,
+                m_pos - tk_begin + 1,
                 tk_line,
                 tk_col,
                 deduced_token_tag
@@ -254,7 +249,6 @@ namespace Edna::Frontend {
 
         [[nodiscard]] Token lex_word(std::string_view source) {
             const auto tk_begin = m_pos;
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
 
@@ -266,7 +260,7 @@ namespace Edna::Frontend {
                 }
             }
 
-            std::string_view lexeme = source.substr(tk_begin, tk_end - tk_begin + 1);
+            std::string_view lexeme = source.substr(tk_begin, m_pos - tk_begin);
 
             const auto deduced_token_tag = ([] (const std::flat_map<std::string_view, TokenTag>& special_lexicals, std::string_view current_lexeme) constexpr noexcept {
                 if (auto token_tag_it = special_lexicals.find(current_lexeme); token_tag_it != special_lexicals.end()) {
@@ -278,7 +272,7 @@ namespace Edna::Frontend {
 
             return Token {
                 tk_begin,
-                tk_end - tk_begin + 1,
+                m_pos - tk_begin,
                 tk_line,
                 tk_col,
                 deduced_token_tag
@@ -287,7 +281,6 @@ namespace Edna::Frontend {
 
         [[nodiscard]] Token lex_symbolic(std::string_view source) {
             const auto tk_begin = m_pos;
-            auto tk_end = tk_begin;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
 
@@ -299,7 +292,7 @@ namespace Edna::Frontend {
                 }
             }
 
-            std::string_view lexeme = source.substr(tk_begin, tk_end - tk_begin + 1);
+            std::string_view lexeme = source.substr(tk_begin, m_pos - tk_begin);
 
             const auto deduced_token_tag = ([] (const std::flat_map<std::string_view, TokenTag>& special_lexicals, std::string_view current_lexeme) constexpr noexcept {
                 if (auto token_tag_it = special_lexicals.find(current_lexeme); token_tag_it != special_lexicals.end()) {
@@ -311,7 +304,7 @@ namespace Edna::Frontend {
 
             return Token {
                 tk_begin,
-                tk_end - tk_begin + 1,
+                m_pos - tk_begin,
                 tk_line,
                 tk_col,
                 deduced_token_tag
