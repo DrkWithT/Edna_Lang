@@ -7,7 +7,7 @@
 
 #### Expressions
 ```
-<primary> = "null" | <boolean> | <int> | <real> | <string> | <identifier> | <array> | <block> | <cond> | <lambda>
+<primary> = "null" | <boolean> | <int> | <real> | <string> | <identifier> | <array> | <block> | <cond> | <lambda> | "(" <expr> ")"
 <array> = "[" ( <expr> ( "," <expr> )* )? "]"
 <block> = "{" <stmt>+ "}"
     ; NOTE: all blocks have their trailing expr-statement as a return!
@@ -32,7 +32,7 @@
 <program> = <stmt>
 <stmt> = <function> | <var> | <symbol-def> | <expr-stmt> ; function decls are like hoisted lambda variables
 <function> = "fun" "(" <identifier> ( "," <identifer> ) ")" "=>" <expr>
-<var> = ( "let" | "mut" ) <identifier> "=" <expr>
+<var> = ( "let" | "mut" ) ( <identifier> "=" <expr> )+
 <operator-literal> = <OP_SYMBOLS>+
 <symbol-def> = "symbol" <operator-literal> "prec" <operator-literal> "=" <lambda>
 <expr-stmt> = <call> ( "=" <expr> )?

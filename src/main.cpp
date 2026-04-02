@@ -84,12 +84,9 @@ int main(int argc, char* argv[]) {
 
     lexer.use_source(source_view);
 
-    do {
-        temp = lexer(source_view);
+    Frontend::Parser parser {lexer, source_view};
 
-        if (temp.tag == Frontend::TokenTag::unknown) {
-            std::println(std::cerr, "At source [{} {}]: unknown token of '{}' found!\n", temp.line, temp.col, temp.as_str_from(source_view));
-            return 1;
-        }
-    } while (temp.tag != Frontend::TokenTag::eof);
+    auto ast_decls = parser(lexer, source_view);
+
+    return ast_decls.empty() ? 1 : 0;
 }
