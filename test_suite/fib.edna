@@ -1,0 +1,12 @@
+; test fibonacci
+
+fun fib(n) => {
+    cond {
+        case n < 2 => n,
+        else => fib(n - 1) + fib(n - 2)
+    }
+}
+
+let ans = fib(30)
+
+print(ans)
