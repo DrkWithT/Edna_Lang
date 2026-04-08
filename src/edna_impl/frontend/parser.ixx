@@ -164,7 +164,7 @@ namespace Edna::Frontend {
             ParseGuard guard {m_infos, m_current.begin, std::to_underlying(ExprTag::atom), ExprInfoOpt {}};
 
             switch (current_tag) {
-            case TokenTag::keyword_null:
+            case TokenTag::keyword_null: case TokenTag::keyword_self:
             case TokenTag::literal_true: case TokenTag::literal_false:
             case TokenTag::literal_int: case TokenTag::literal_real:
             case TokenTag::literal_string: case TokenTag::literal_esc_string:

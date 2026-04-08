@@ -50,6 +50,7 @@ int main(int argc, char* argv[]) {
     Frontend::Lexer lexer;
 
     lexer.add_edna_lexical("null", Frontend::TokenTag::keyword_null);
+    lexer.add_edna_lexical("self", Frontend::TokenTag::keyword_self);
     lexer.add_edna_lexical("fun", Frontend::TokenTag::keyword_fun);
     lexer.add_edna_lexical("uses", Frontend::TokenTag::keyword_uses);
     lexer.add_edna_lexical("let", Frontend::TokenTag::keyword_let);

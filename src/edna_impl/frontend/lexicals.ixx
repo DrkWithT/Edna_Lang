@@ -13,6 +13,7 @@ namespace Edna::Frontend {
         comment,
         identifier,
         keyword_null,
+        keyword_self,
         keyword_fun,
         keyword_uses,
         keyword_let,
