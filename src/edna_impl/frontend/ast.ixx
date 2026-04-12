@@ -140,7 +140,6 @@ namespace Edna::Frontend {
     struct Lhs {
         ExprPtr lhs;
         ExprPtr rhs;
-        bool uses_dot; //? NOTE: if false, bracket access syntax applies
     };
 
     struct Call {
@@ -179,6 +178,7 @@ namespace Edna::Frontend {
         std::vector<Param> params;
         Token name_token;
         ExprPtr body;
+        // TODO: USE this field: // bool is_ctor;
     };
 
     struct SymbolDef {

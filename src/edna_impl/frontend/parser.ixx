@@ -164,7 +164,7 @@ namespace Edna::Frontend {
             ParseGuard guard {m_infos, m_current.begin, std::to_underlying(ExprTag::atom), ExprInfoOpt {}};
 
             switch (current_tag) {
-            case TokenTag::keyword_null: case TokenTag::keyword_self:
+            case TokenTag::literal_null: case TokenTag::keyword_self:
             case TokenTag::literal_true: case TokenTag::literal_false:
             case TokenTag::literal_int: case TokenTag::literal_real:
             case TokenTag::literal_string: case TokenTag::literal_esc_string:
@@ -407,28 +407,11 @@ namespace Edna::Frontend {
                                 },
                                 .line = m_previous.line,
                                 .tag = ExprTag::atom
-                            }),
-                            .uses_dot = true
+                            })
                         },
                         .line = m_previous.line,
                         .tag = ExprTag::lhs
                     });
-                } else if (match_token(TokenTag::left_bracket)) {
-                    consume(lexer, source);
-
-                    ExprPtr index_expr = parse_or(lexer, source);
-
-                    lhs = std::make_unique<ExprNode>(ExprNode {
-                        .data = Lhs {
-                            .lhs = std::move(lhs),
-                            .rhs = std::move(index_expr),
-                            .uses_dot = false
-                        },
-                        .line = m_previous.line,
-                        .tag = ExprTag::lhs
-                    });
-
-                    consume(lexer, source, "Expected ']' closing an index-style member access.", TokenTag::right_bracket);
                 } else {
                     break;
                 }
