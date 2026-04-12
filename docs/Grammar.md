@@ -15,7 +15,7 @@
 <cases> = ( "case" <compare> "=>" <expr> )*
 <else> = "else" "=>" <expr>
 <lambda> = "fun" "(" <identifier> ( "," <identifer> ) ( "..." <identifier> )? ")" ("uses" <identifier>)? "=>" <expr>
-<lhs> = <primary> ( ( "." <identifier> ) | ( "[" <expr> "]" ) )*
+<lhs> = <primary> ("." <identifier>)*
 <call> = <lhs> ( "(" <expr> ( "," <expr> )* ")" )?
 <unary> = ( "-" | "!" )? <call>
 <factor> = <unary> ( ("*" | "/") <unary> )*
