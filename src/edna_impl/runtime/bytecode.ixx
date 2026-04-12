@@ -1,0 +1,147 @@
+module;
+
+#include <utility>
+#include <array>
+#include <string_view>
+#include <memory>
+#include <vector>
+#include <print>
+
+export module edna.runtime.bytecode;
+
+export import edna.runtime.value;
+
+namespace Edna::Runtime {
+    export enum class Opcode : std::uint8_t {
+        nop,
+        dup,
+        push_null,
+        push_bool,
+        push_self,
+        push_global,
+        push_const,
+        get_local,
+        set_local,
+        get_prop,
+        set_prop,
+        pop,
+        make_array,
+        make_object,
+        deref, //! replace both value.ixx ~ line#146, 157
+        negate_bool,
+        negate_num,
+        mod,
+        mul,
+        div,
+        add,
+        sub,
+        compare_eq,
+        compare_ne,
+        compare_lt,
+        compare_lte,
+        compare_gt,
+        compare_gte,
+        test,
+        jump,
+        jump_back,
+        jump_if,
+        jump_else,
+        call_ctor,
+        call_fun,
+        ret,
+        // throw_obj,
+        // catch_obj
+        last
+    };
+
+    export struct Instruction {
+        Opcode op;
+        std::uint16_t arg;
+    };
+
+    export struct Chunk {
+        std::vector<Value> consts;
+        std::vector<Instruction> code;
+    };
+
+    export struct Program {
+        ObjectHeap pre_heap;
+        std::vector<Value> globals;
+        std::vector<Chunk> chunks;
+        int entry_chunk_id;
+    };
+
+    export void disassemble_program(const Program& program) {
+        static constexpr std::array<std::string_view, static_cast<std::size_t>(Opcode::last)> opcode_names = {
+            "nop",
+            "dup",
+            "push_null",
+            "push_bool",
+            "push_self",
+            "push_global",
+            "push_const",
+            "get_local",
+            "set_local",
+            "get_prop",
+            "set_prop",
+            "pop",
+            "make_array",
+            "make_object",
+            "deref",
+            "negate_bool",
+            "negate_num",
+            "mod",
+            "mul",
+            "div",
+            "add",
+            "sub",
+            "compare_eq",
+            "compare_ne",
+            "compare_lt",
+            "compare_lte",
+            "compare_gt",
+            "compare_gte",
+            "test",
+            "jump",
+            "jump_back",
+            "jump_if",
+            "jump_else",
+            "call_ctor",
+            "call_fun",
+            "ret"
+        };
+
+        static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constants_names = {
+            "null",
+            "boolean",
+            "integer",
+            "local_id",
+            "heap_id"
+        };
+
+        const auto& [program_heap, program_chunks, program_entry_id] = program;
+
+        std::println("\x1b[1;33mProgram dump:\x1b[0m\n\n");
+
+        for (auto chunk_id = 0; const auto& [chunk_constants, chunk_code] : program_chunks) {
+            std::println("\x1b[1;33m;Chunk {}\x1b[0m\n", chunk_id);
+
+            for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
+                if (constant_v.is_nan()) {
+                    std::println("constant {}: tag: {}, scalar: {}", constant_id, constants_names.at(constant_v.hint()), constant_v.scalar());
+                } else {
+                    std::println("constant {}: tag: {}, data: {}", constant_id, "real", constant_v.as_double());
+                }
+
+                constant_id++;
+            }
+
+            for (auto instruction_pos = 0; const auto& [instruction_op, instruction_arg] : chunk_code) {
+                std::println("{}: {} {}", instruction_pos, opcode_names.at(std::to_underlying(instruction_op)), instruction_arg);
+                instruction_pos++;
+            }
+
+            chunk_id++;
+        }
+    }
+}

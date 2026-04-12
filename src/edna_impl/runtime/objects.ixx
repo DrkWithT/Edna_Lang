@@ -11,8 +11,19 @@ export module edna.runtime.objects;
 export import edna.runtime.meta;
 
 namespace Edna::Runtime {
+    export struct PropertyEntry {
+        Value key;
+        Value item;
+        bool can_edit;
+    };
+
+    //? NOTE: This is the basic class of all native object types in Edna, allowing basic comparisons, call for functions, etc.
+    //! WARNING: The methods with void* ctx MUST have the EvalContext passed by pointer, so the reinterpret_cast back to EvalContext is sound.
     class ObjectBase {
     public:
+        using properties = std::vector<PropertyEntry>;
+        using items = std::vector<Value>;
+
         virtual ~ObjectBase() = default;
 
         virtual bool test(void* ctx) const noexcept = 0;
@@ -20,19 +31,18 @@ namespace Edna::Runtime {
         virtual bool operator>(void* ctx, const ObjectBase& object) const noexcept = 0;
         virtual bool operator==(void* ctx, const ObjectBase& object) const noexcept = 0;
 
-        virtual const ObjectBase* get_prototype(void* ctx) const noexcept = 0;
-        virtual ObjectBase* get_prototype(void* ctx) noexcept = 0;
+        virtual const Value* get_prototype(void* ctx, bool use_proto) const noexcept = 0;
+        virtual Value* get_prototype(void* ctx, bool use_proto) noexcept = 0;
 
-        virtual Value get_property(void* ctx, Value key, bool lookup_dynamic) = 0;
-        virtual Value get_property(void* ctx, int pos, bool lookup_dynamic) = 0;
-        virtual void set_property(void* ctx, Value key, bool lookup_dynamic) = 0;
-        virtual void set_property(void* ctx, int pos, bool lookup_dynamic) = 0;
+        virtual Value get_property(void* ctx, Value key, bool use_protos) = 0;
+        virtual Value get_property(void* ctx, int pos, bool use_protos) = 0;
+        virtual void set_property(void* ctx, Value key, bool use_protos) = 0;
+        virtual void set_property(void* ctx, int pos, bool use_protos) = 0;
 
         virtual std::string as_str(void* ctx) const = 0;
 
-        virtual int size() const noexcept = 0;
-
-        virtual bool call(void* ctx, int argc) = 0;
+        virtual bool call(void* ctx, std::uint8_t argc) = 0;
+        virtual bool call_as_ctor(void* ctx, std::uint8_t argc) = 0;
     };
 
 
@@ -78,6 +88,7 @@ namespace Edna::Runtime {
             m_tenure_count = m_next_id;
         }
 
+        //! WARNING: object_p is meant to be a raw owning pointer (that's passed from the tail call optimized VM which cannot have non-trivially destructible things in opcode handlers) to some object. This overload exists to quickly manage the raw pointer in the "heap".
         template <typename ObjectType> requires (std::is_base_of_v<ObjectBase, ObjectType>)
         [[nodiscard]] int store(ObjectType* object_p) noexcept {
             const auto result_id = try_use_id();
