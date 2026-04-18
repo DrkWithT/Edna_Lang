@@ -5,7 +5,7 @@ module;
 #include <memory>
 #include <algorithm>
 #include <string>
-#include <vector>
+// #include <vector>
 #include <variant>
 
 export module edna.runtime.callables;
@@ -13,17 +13,16 @@ export module edna.runtime.callables;
 export import edna.runtime.context;
 
 namespace Edna::Runtime {
-    class Callable : public ObjectBase {
+    export class Callable : public ObjectBase<Value> {
     public:
         using properties = typename ObjectBase::properties;
         using items = typename ObjectBase::items;
-        using native_fun = EvalStatus(*)(EvalContext*, std::uint8_t argc);
-        using code_ptr = const Instruction*;
+        using native_fun = EvalStatus(*)(Runtime::EvalContext*, std::uint8_t argc);
 
     private:
-        using content_type = std::variant<native_fun, code_ptr>;
+        using content_type = std::variant<native_fun, Chunk>;
 
-        std::variant<native_fun, code_ptr> m_contents;
+        std::variant<native_fun, Chunk> m_contents;
         properties m_properties;
         items m_indexables;
         std::uint8_t m_arity;
@@ -42,24 +41,24 @@ namespace Edna::Runtime {
             return true;
         }
 
-        [[nodiscard]] bool operator<(void* ctx, const ObjectBase& object) const noexcept override {
+        [[nodiscard]] bool lt(void* ctx, const ObjectBase<Value>& object) const noexcept override {
             return false;
         }
 
-        [[nodiscard]] bool operator>(void* ctx, const ObjectBase& object) const noexcept override {
+        [[nodiscard]] bool gt(void* ctx, const ObjectBase<Value>& object) const noexcept override {
             return false;
         }
 
-        [[nodiscard]] bool operator==(void* ctx, const ObjectBase& object) const noexcept override {
+        [[nodiscard]] bool equals(void* ctx, const ObjectBase<Value>& object) const noexcept override {
             return this == std::addressof(object);
         }
 
         [[nodiscard]] Value get_property(void* ctx, Value key, bool use_protos) override {
-            return Value::create_from(); // todo
+            return Value::create_from_dud(); // todo
         }
 
         [[nodiscard]] Value get_property(void* ctx, int pos, bool use_protos) override {
-            return Value::create_from(); // todo
+            return Value::create_from_dud(); // todo
         }
 
         void set_property(void* ctx, Value key, bool use_protos) override {
@@ -70,8 +69,16 @@ namespace Edna::Runtime {
             ; // todo
         }
 
+        [[nodiscard]] const Value* get_prototype(void* ctx, bool use_proto) const noexcept override {
+            return nullptr;
+        }
+
+        [[nodiscard]] Value* get_prototype(void* ctx, bool use_proto) noexcept override {
+            return nullptr;
+        }
+
         [[nodiscard]] std::string as_str(void* ctx) const override {
-            return {"Callable {...}"}; // todo
+            return std::string {"Callable {...}"}; // todo
         }
 
         /**
@@ -97,12 +104,15 @@ namespace Edna::Runtime {
             }
 
             const Instruction* caller_ret_ip_v = context->ip + 1;
+            const Value* caller_cvp = context->cvp;
             const std::uint16_t caller_bp_v = context->bp;
-            const std::uint16_t callee_bp_v = context->sp - args;
+            const std::uint16_t callee_bp_v = context->sp - argc;
 
-            context.frames.emplace_back(caller_ret_ip_v, caller_bp_v, callee_bp_v);
+            context->frames.emplace(caller_ret_ip_v, caller_cvp, caller_bp_v, callee_bp_v);
 
-            context->ip = std::get<code_ptr>(m_contents);
+            const auto& function_chunk = std::get<Chunk>(m_contents);
+            context->ip = function_chunk.code.data();
+            context->cvp = function_chunk.consts.data();
             context->bp = callee_bp_v;
 
             return true;

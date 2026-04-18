@@ -1,7 +1,9 @@
 module;
 
 #include <utility>
-#include <type_traits>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <cmath>
 
 export module edna.runtime.value;
@@ -11,6 +13,7 @@ export import edna.runtime.objects;
 namespace Edna::Runtime {
     export struct ValueNaNOpt {};
     export struct ValueScalarOpt {};
+    export struct UseNativeTypeOpt {};
     export struct LocalIdOpt {};
     export struct HeapIdOpt {};
 
@@ -23,7 +26,7 @@ namespace Edna::Runtime {
         last
     };
 
-    class Value {
+    export class Value {
     public:
         using bits_type = std::uint64_t;
         using num_type = double;
@@ -37,7 +40,7 @@ namespace Edna::Runtime {
 
         num_type data;
 
-        [[nodiscard]] static constexpr bits_type alias_data_to_bits_type(this auto&& self) noexcept {
+        [[nodiscard]] constexpr bits_type alias_data_to_bits_type(this auto&& self) noexcept {
             bits_type temp {};
 
             std::memcpy(&temp, &self.data, sizeof(num_type));
@@ -68,6 +71,9 @@ namespace Edna::Runtime {
         }
 
     public:
+        constexpr Value() noexcept
+        : Value (ValueNaNOpt {}) {}
+
         constexpr Value([[maybe_unused]] ValueNaNOpt opt) noexcept
         : data {data_from_bits_type(qnan_prefix)} {}
 
@@ -77,24 +83,28 @@ namespace Edna::Runtime {
         constexpr Value([[maybe_unused]] ValueScalarOpt opt, ValueScalarHint hint, int scalar) noexcept
         : data {data_from_bits_type(encode_bits_type(hint, scalar))} {}
 
-        [[nodiscard]] static constexpr Value create_from() noexcept {
+        [[nodiscard]] static constexpr Value create_from_dud() noexcept {
             return Value {ValueNaNOpt {}};
         }
 
-        [[nodiscard]] static constexpr Value create_from(bool b) noexcept {
+        [[nodiscard]] static constexpr Value create_from_bool(bool b) noexcept {
             return Value {ValueScalarOpt {}, ValueScalarHint::boolean, static_cast<int>(b)};
         }
 
-        [[nodiscard]] static constexpr Value create_from(int i) noexcept {
+        [[nodiscard]] static constexpr Value create_from_int(int i) noexcept {
             return Value {ValueScalarOpt {}, ValueScalarHint::integer, i};
         }
 
-        [[nodiscard]] static constexpr Value create_from(int i, [[maybe_unused]] LocalIdOpt opt) noexcept {
+        [[nodiscard]] static constexpr Value create_from_id(int i, [[maybe_unused]] LocalIdOpt opt) noexcept {
             return Value {ValueScalarOpt {}, ValueScalarHint::local_id, i};
         }
 
-        [[nodiscard]] static constexpr Value create_from(int i, [[maybe_unused]] HeapIdOpt opt) noexcept {
+        [[nodiscard]] static constexpr Value create_from_id(int i, [[maybe_unused]] HeapIdOpt opt) noexcept {
             return Value {ValueScalarOpt {}, ValueScalarHint::heap_id, i};
+        }
+
+        [[nodiscard]] static constexpr Value create_from_double(double d) noexcept {
+            return Value {d};
         }
 
         //! Deduces whether the boxed double is a QNAN.
@@ -113,11 +123,11 @@ namespace Edna::Runtime {
         [[nodiscard]] constexpr int scalar() const noexcept {
             const auto data_as_bytes = reinterpret_cast<const std::byte*>(&data);
 
-            return (std::to_underlying(data_as_bytes[0]) & 0xf0)
-                + std::to_underlying(data_as_bytes[1]) << 8
-                + std::to_underlying(data_as_bytes[2]) << 16
-                + std::to_underlying(data_as_bytes[3]) << 24
-                + (std::to_underlying(data_as_bytes[4]) & 0x0f) << 32;
+            return ((std::to_underlying(data_as_bytes[0]) & 0xf0) >> 4)
+                + (std::to_underlying(data_as_bytes[1]) << 4)
+                + (std::to_underlying(data_as_bytes[2]) << 12)
+                + (std::to_underlying(data_as_bytes[3]) << 20)
+                + ((std::to_underlying(data_as_bytes[4]) & 0x0f) << 28);
         }
 
         [[nodiscard]] constexpr bits_type as_bits_type() const noexcept {
@@ -130,20 +140,20 @@ namespace Edna::Runtime {
 
 
 
-        [[nodiscard]] constexpr void load_aliased_data([[maybe_unused]] ValueNaNOpt opt) noexcept {
+        constexpr void load_aliased_data([[maybe_unused]] ValueNaNOpt opt) noexcept {
             data = data_from_bits_type(qnan_prefix);
         }
 
-        [[nodiscard]] constexpr void load_num_data(double data_) noexcept {
+        constexpr void load_num_data(double data_) noexcept {
             data = data_;
         }
 
-        [[nodiscard]] constexpr void load_aliased_data([[maybe_unused]] ValueScalarOpt opt, ValueScalarHint hint, int scalar) noexcept {
+        constexpr void load_aliased_data([[maybe_unused]] ValueScalarOpt opt, ValueScalarHint hint, int scalar) noexcept {
             data = data_from_bits_type(encode_bits_type(hint, scalar));
         }
 
-        template <Meta::ContextKind C>
-        constexpr Value resolve_local_v(const C& ctx) {
+        template <typename C>
+        [[nodiscard]] constexpr Value resolve_local_v(const C& ctx) {
             Value temp {*this};
 
             while (temp.is_nan() && temp.hint() == ValueScalarHint::local_id) {
@@ -153,9 +163,9 @@ namespace Edna::Runtime {
             return temp;
         }
 
-        template <Meta::ContextKind C>
-        constexpr ObjectBase* resolve_object_p(const C& ctx) {
-            auto resolved_value = resolve_local_v(v)
+        template <typename C>
+        [[nodiscard]] constexpr ObjectBase<Value>* resolve_object_p(const C& ctx) {
+            auto resolved_value = resolve_local_v(ctx);
 
             if (resolved_value.hint() != ValueScalarHint::heap_id) {
                 return nullptr;
