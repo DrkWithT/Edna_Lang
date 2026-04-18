@@ -7,7 +7,7 @@ module;
 
 export module edna.frontend.ast;
 
-import edna.frontend.lexicals;
+export import edna.frontend.lexicals;
 
 namespace Edna::Frontend {
     export enum class ExprTag : std::uint8_t {

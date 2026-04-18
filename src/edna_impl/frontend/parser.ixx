@@ -291,7 +291,7 @@ namespace Edna::Frontend {
                     .cases = std::move(cond_cases)
                 },
                 .line = cond_line,
-                .tag = ExprTag::block
+                .tag = ExprTag::cond
             });
         }
 
@@ -372,6 +372,8 @@ namespace Edna::Frontend {
             }
 
             consume(lexer, source, "Expected closing '(' of lambda parameters.", TokenTag::right_paren);
+
+            consume(lexer, source, "Expected '=>' before function body / expression.", TokenTag::arrow);
 
             ExprPtr lambda_body = parse_or(lexer, source);
 
@@ -752,7 +754,8 @@ namespace Edna::Frontend {
                     .has_mut = vars_are_mutable
                 },
                 .line = vars_line,
-                .trailing = false
+                .trailing = false,
+                .tag = StmtTag::var_decl
             });
         }
 
@@ -772,7 +775,8 @@ namespace Edna::Frontend {
                     .inner = std::move(inner_expr)
                 },
                 .line = expr_stmt_line,
-                .trailing = false
+                .trailing = false,
+                .tag = StmtTag::expr_stmt
             });
         }
 

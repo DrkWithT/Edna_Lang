@@ -137,8 +137,6 @@ namespace Edna::Frontend {
         }
 
         [[nodiscard]] Token lex_number(std::string_view source) noexcept {
-            m_pos++; // skip leading semicolon...
-
             const auto tk_begin = m_pos;
             const auto tk_line = m_line;
             const auto tk_col = m_col;
