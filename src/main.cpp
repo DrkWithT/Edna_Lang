@@ -2,7 +2,6 @@
 #include <string_view>
 #include <sstream>
 #include <fstream>
-#include <iostream>
 #include <print>
 
 import edna_impl;
@@ -25,6 +24,7 @@ import edna_impl;
     return sout.str();
 }
 
+// todo: refactor all setup + interpreter logic into a driver class later.
 int main(int argc, char* argv[]) {
     using namespace Edna;
 
@@ -49,7 +49,9 @@ int main(int argc, char* argv[]) {
 
     Frontend::Lexer lexer;
 
-    lexer.add_edna_lexical("null", Frontend::TokenTag::keyword_null);
+    lexer.add_edna_lexical("null", Frontend::TokenTag::literal_null);
+    lexer.add_edna_lexical("true", Frontend::TokenTag::literal_true);
+    lexer.add_edna_lexical("false", Frontend::TokenTag::literal_false);
     lexer.add_edna_lexical("self", Frontend::TokenTag::keyword_self);
     lexer.add_edna_lexical("fun", Frontend::TokenTag::keyword_fun);
     lexer.add_edna_lexical("uses", Frontend::TokenTag::keyword_uses);
@@ -89,5 +91,31 @@ int main(int argc, char* argv[]) {
 
     auto ast_decls = parser(lexer, source_view);
 
-    return ast_decls.empty() ? 1 : 0;
+    if (ast_decls.empty()) {
+        return 1;
+    }
+
+    Compile::CompileContext compiler_state;
+
+    compiler_state.add_expr_emitter(Frontend::ExprTag::atom, std::make_unique<Compile::AtomEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::cond, std::make_unique<Compile::CondEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::block, std::make_unique<Compile::BlockEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::array, std::make_unique<Compile::ArrayLiteralEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::lambda, std::make_unique<Compile::LambdaEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::lhs, std::make_unique<Compile::LhsEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::call, std::make_unique<Compile::CallEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::unary, std::make_unique<Compile::UnaryEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::binary, std::make_unique<Compile::BinaryEmitter>());
+    compiler_state.add_expr_emitter(Frontend::ExprTag::assign, std::make_unique<Compile::AssignEmitter>());
+
+    compiler_state.add_stmt_emitter(Frontend::StmtTag::var_decl, std::make_unique<Compile::VarsEmitter>());
+    compiler_state.add_stmt_emitter(Frontend::StmtTag::expr_stmt, std::make_unique<Compile::ExprStmtEmitter>());
+
+    auto program_opt = Compile::compile_all(compiler_state, ast_decls, source_string);
+
+    if (!program_opt) {
+        return 1;
+    }
+
+    Runtime::disassemble_program(program_opt.value());
 }
