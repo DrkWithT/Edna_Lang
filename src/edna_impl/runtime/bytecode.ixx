@@ -3,7 +3,7 @@ module;
 #include <utility>
 #include <array>
 #include <string_view>
-#include <memory>
+// #include <memory>
 #include <vector>
 #include <print>
 
@@ -65,7 +65,7 @@ namespace Edna::Runtime {
     };
 
     export struct Program {
-        ObjectHeap pre_heap;
+        ObjectHeap<Value> pre_heap;
         std::vector<Value> globals;
         std::vector<Chunk> chunks;
         int entry_chunk_id;
@@ -119,16 +119,23 @@ namespace Edna::Runtime {
             "heap_id"
         };
 
-        const auto& [program_heap, program_chunks, program_entry_id] = program;
+        const auto& [program_heap, program_globals, program_chunks, program_entry_id] = program;
 
         std::println("\x1b[1;33mProgram dump:\x1b[0m\n\n");
 
         for (auto chunk_id = 0; const auto& [chunk_constants, chunk_code] : program_chunks) {
-            std::println("\x1b[1;33m;Chunk {}\x1b[0m\n", chunk_id);
+            std::println("\x1b[1;33mChunk {}\x1b[0m\n", chunk_id);
 
             for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
                 if (constant_v.is_nan()) {
-                    std::println("constant {}: tag: {}, scalar: {}", constant_id, constants_names.at(constant_v.hint()), constant_v.scalar());
+                    std::println(
+                        "constant {}: tag: {}, scalar: {}",
+                        constant_id,
+                        constants_names.at(
+                            std::to_underlying(constant_v.hint())
+                        ),
+                        constant_v.scalar()
+                    );
                 } else {
                     std::println("constant {}: tag: {}, data: {}", constant_id, "real", constant_v.as_double());
                 }
