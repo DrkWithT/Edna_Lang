@@ -33,6 +33,8 @@ namespace Edna::Compile {
             std::string name_lexeme = name_token.as_string_from(source);
 
             if (c.needs_prepass) {
+                FlagGuard<bool> in_lhs_guard {&c.within_assignable, true};
+
                 auto local_info = c.record_local_symbol(name_lexeme);
 
                 c.encode_instruction(Runtime::Opcode::push_null);
@@ -43,7 +45,7 @@ namespace Edna::Compile {
 
             {
                 FlagGuard<std::string> current_name_guard {&c.current_name, name_lexeme};
-                
+
                 if (!c.emit_expr(*initializer_expr, source)) {   
                     return false;
                 }

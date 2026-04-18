@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
     compiler_state.add_expr_emitter(Frontend::ExprTag::binary, std::make_unique<Compile::BinaryEmitter>());
     compiler_state.add_expr_emitter(Frontend::ExprTag::assign, std::make_unique<Compile::AssignEmitter>());
 
-    compiler_state.add_stmt_emitter(Frontend::StmtTag::var_decl, std::make_unique<Compile::VarsEmitter>());
+    compiler_state.add_stmt_emitter(Frontend::StmtTag::vars, std::make_unique<Compile::VarsEmitter>());
     compiler_state.add_stmt_emitter(Frontend::StmtTag::expr_stmt, std::make_unique<Compile::ExprStmtEmitter>());
 
     auto program_opt = Compile::compile_all(compiler_state, ast_decls, source_string);

@@ -26,6 +26,7 @@ namespace Edna::Frontend {
 
     export enum class StmtTag : std::uint8_t {
         var_decl,
+        vars,
         symbol_def, //? NOTE: custom operator
         expr_stmt,
         function_decl,

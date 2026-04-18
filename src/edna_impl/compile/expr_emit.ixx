@@ -41,7 +41,7 @@ namespace Edna::Compile {
             } else if (atom_lexeme == c.current_name || domain_tag == Domain::self) {
                 c.encode_instruction(Runtime::Opcode::push_self);
             } else {
-                std::string msg = std::format("Invalid type of name information, likely undeclared, found for '{}'", atom_lexeme);
+                std::string msg = std::format("Invalid type of name information, likely undeclared, found for '{}' in scope of '{}'", atom_lexeme, c.scopes.back().title);
                 c.report_error(msg, atom_token.line);
 
                 return false;
@@ -71,50 +71,51 @@ namespace Edna::Compile {
             std::string literal_lexeme = atom_token.as_string_from(source);
 
             switch (atom_token.tag) {
-            //? The "null" / boolean symbol will be mapped before actual bytecode compilation begins, so this should work.
-            case Frontend::TokenTag::keyword_self: c.encode_instruction(Runtime::Opcode::push_self); break;
-            case Frontend::TokenTag::literal_null: {
-                c.encode_instruction(Runtime::Opcode::push_null);
-            } break; case Frontend::TokenTag::literal_true: case Frontend::TokenTag::literal_false: {
-                c.encode_instruction(Runtime::Opcode::push_bool, static_cast<std::uint16_t>(atom_token.tag == Frontend::TokenTag::literal_true));
-            } break;
-            case Frontend::TokenTag::literal_int: {
-                auto integer_locator = c.lookup_constant_symbol(literal_lexeme)
-                    .or_else([&] () mutable {
-                        return c.record_constant_symbol(
-                            literal_lexeme,
-                            false,
-                            Runtime::Value::create_from_int(std::stoi(literal_lexeme))
-                        );
+                //? The "null" / boolean symbol will be mapped before actual bytecode compilation begins, so this should work.
+                case Frontend::TokenTag::keyword_self: c.encode_instruction(Runtime::Opcode::push_self); break;
+                case Frontend::TokenTag::literal_null: {
+                    c.encode_instruction(Runtime::Opcode::push_null);
+                } break; case Frontend::TokenTag::literal_true: case Frontend::TokenTag::literal_false: {
+                    c.encode_instruction(Runtime::Opcode::push_bool, static_cast<std::uint16_t>(atom_token.tag == Frontend::TokenTag::literal_true));
+                } break;
+                case Frontend::TokenTag::literal_int: {
+                    auto integer_locator = c.lookup_constant_symbol(literal_lexeme)
+                        .or_else([&] () mutable {
+                            return c.record_constant_symbol(
+                                literal_lexeme,
+                                false,
+                                Runtime::Value::create_from_int(std::stoi(literal_lexeme))
+                            );
+                        });
+
+                    if (!integer_locator) {
+                        return false;
+                    }
+
+                    c.encode_instruction(Runtime::Opcode::push_const, integer_locator->id);
+                } break;
+                case Frontend::TokenTag::literal_real: {
+                    auto real_locator = c.lookup_constant_symbol(literal_lexeme).or_else([&] () mutable {
+                        return c.record_constant_symbol(literal_lexeme, false, Runtime::Value::create_from_double(std::stod(literal_lexeme)));
                     });
 
-                if (!integer_locator) {
-                    return false;
+                    if (!real_locator) {
+                        return false;
+                    }
+
+                    c.encode_instruction(Runtime::Opcode::push_const, real_locator->id);
+                } break;
+                case Frontend::TokenTag::literal_string: {
+                    c.report_error("String literals are not yet supported.", expr_line);
+                    return false; // todo
                 }
-
-                c.encode_instruction(Runtime::Opcode::push_const, integer_locator->id);
-            } break;
-            case Frontend::TokenTag::literal_real: {
-                auto real_locator = c.lookup_constant_symbol(literal_lexeme).or_else([&] () mutable {
-                    return c.record_constant_symbol(literal_lexeme, false, Runtime::Value::create_from_double(std::stod(literal_lexeme)));
-                });
-
-                if (!real_locator) {
-                    return false;
+                case Frontend::TokenTag::literal_esc_string: {
+                    c.report_error("Escaped string literals are not yet supported.", expr_line);
+                    return false; // todo
                 }
-
-                c.encode_instruction(Runtime::Opcode::push_const, real_locator->id);
-            } break;
-            case Frontend::TokenTag::literal_string: {
-                c.report_error("String literals are not yet supported.", expr_line);
-                return false; // todo
-            }
-            case Frontend::TokenTag::literal_esc_string: {
-                c.report_error("Escaped string literals are not yet supported.", expr_line);
-                return false; // todo
-            }
-            case Frontend::TokenTag::identifier: default:
-                return emit_name(c, atom_token, source);
+                case Frontend::TokenTag::identifier:
+                    return emit_name(c, atom_token, source);
+                default: break;
             }
 
             return true;
@@ -221,9 +222,22 @@ namespace Edna::Compile {
             if (is_lexically_scoped_block) {
                 c.scopes.emplace_back(SymbolScope {
                     .locations = c.scopes.back().locations,
+                    .title = "(anonymous-block-expr)",
                     .next_local_id = c.scopes.back().next_local_id,
                     .next_const_id = c.scopes.back().next_const_id,
                 });
+                c.function_body_scope_depth++;
+            }
+
+            {
+                FlagGuard<bool> block_inside_prepass_guard {&c.needs_prepass, true};
+
+                for (const auto& prepass_stmt : block_stmts) {
+                    if (!c.emit_stmt(*prepass_stmt, source)) {
+                        c.scopes.pop_back();
+                        return false;
+                    }
+                }
             }
 
             {
@@ -237,18 +251,8 @@ namespace Edna::Compile {
                 }
             }
 
-            {
-                FlagGuard<bool> block_inside_prepass_guard {&c.needs_prepass, true};
-                
-                for (const auto& prepass_stmt : block_stmts) {
-                    if (!c.emit_stmt(*prepass_stmt, source)) {
-                        c.scopes.pop_back();
-                        return false;
-                    }
-                }
-            }
-
             if (is_lexically_scoped_block) {
+                c.function_body_scope_depth--;
                 c.scopes.pop_back();
             }
 
@@ -300,9 +304,11 @@ namespace Edna::Compile {
             });
             c.scopes.emplace_back(SymbolScope {
                 .locations = {},
+                .title = c.current_name,
                 .next_local_id = 0,
                 .next_const_id = 0
             });
+            c.function_body_scope_depth++;
 
             c.scopes.back().locations[c.current_name] = SymbolInfo {
                 .id = 0,
@@ -324,6 +330,7 @@ namespace Edna::Compile {
             c.encode_instruction(Runtime::Opcode::ret); //? implicitly return upon end of each block... MAYBE blocks will create their own call-frame-like record, allowing for blocks to be used like mini-functions that capture their parent's names?
 
             c.scopes.pop_back();
+            c.function_body_scope_depth--;
             c.current_name.clear();
 
             //? Here, construct a callable on the heap, preloaded, before recording the name as a constant... finally generating a push of the lambda as a temporary.

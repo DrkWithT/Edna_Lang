@@ -3,11 +3,9 @@ module;
 #include <utility>
 #include <type_traits>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <array>
 #include <vector>
-#include <variant>
 #include <iostream>
 #include <format>
 #include <print>
@@ -755,7 +753,7 @@ namespace Edna::Frontend {
                 },
                 .line = vars_line,
                 .trailing = false,
-                .tag = StmtTag::var_decl
+                .tag = StmtTag::vars
             });
         }
 

@@ -35,6 +35,7 @@ namespace Edna::Compile {
 
     export struct SymbolScope {
         std::flat_map<std::string, SymbolInfo> locations;
+        std::string title;
         int next_local_id;
         int next_const_id;
         bool is_of_func_body;
@@ -117,6 +118,7 @@ namespace Edna::Compile {
             //? 1. Establish top-level scoping & codegen data for correctness. Nested scopes will make nested mappings as such.
             scopes.emplace_back(SymbolScope {
                 .locations = {},
+                .title = "(global-body)",
                 .next_local_id = 0,
                 .next_const_id = 0,
                 .is_of_func_body = true

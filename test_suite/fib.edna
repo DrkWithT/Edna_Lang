@@ -1,6 +1,6 @@
 ; test fibonacci
 
-fun fib(n) => {
+let fib = fun (n) => {
     cond {
         case n < 2 => n,
         else => fib(n - 1) + fib(n - 2)
@@ -9,4 +9,4 @@ fun fib(n) => {
 
 let ans = fib(30)
 
-print(ans)
+; print(ans)
