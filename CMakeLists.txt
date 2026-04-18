@@ -12,10 +12,14 @@ target_sources(
     src/edna_impl/frontend/lexer.ixx
     src/edna_impl/frontend/ast.ixx
     src/edna_impl/frontend/parser.ixx
-    # src/edna_impl/backend/compile_ctx.ixx
-    # src/edna_impl/backend/compile_exprs.ixx
-    # src/edna_impl/backend/compile_stmts.ixx
-    # src/edna_impl/runtime/value.ixx
+    src/edna_impl/compile/context.ixx
+    src/edna_impl/compile/expr_emit.ixx
+    src/edna_impl/compile/stmt_emit.ixx
+    src/edna_impl/runtime/objects.ixx
+    src/edna_impl/runtime/value.ixx
+    src/edna_impl/runtime/bytecode.ixx
+    src/edna_impl/runtime/context.ixx
+    src/edna_impl/runtime/callables.ixx
     # src/edna_impl/runtime/vm.ixx
 )
 
