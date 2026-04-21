@@ -38,8 +38,8 @@ namespace Edna::Compile {
                 c.encode_instruction(Runtime::Opcode::push_global, domain_id);
             } else if (domain_tag == Domain::local) {
                 c.encode_instruction(Runtime::Opcode::get_local, domain_id);
-            } else if (atom_lexeme == c.current_name || domain_tag == Domain::self) {
-                c.encode_instruction(Runtime::Opcode::push_self);
+            } else if (atom_lexeme == c.current_name && c.within_call) {
+                c.encode_instruction(Runtime::Opcode::push_callee);
             } else {
                 std::string msg = std::format("Invalid type of name information, likely undeclared, found for '{}' in scope of '{}'", atom_lexeme, c.scopes.back().title);
                 c.report_error(msg, atom_token.line);
@@ -72,7 +72,7 @@ namespace Edna::Compile {
 
             switch (atom_token.tag) {
                 //? The "null" / boolean symbol will be mapped before actual bytecode compilation begins, so this should work.
-                case Frontend::TokenTag::keyword_self: c.encode_instruction(Runtime::Opcode::push_self); break;
+                // case Frontend::TokenTag::keyword_self: c.encode_instruction(Runtime::Opcode::push_self); break;
                 case Frontend::TokenTag::literal_null: {
                     c.encode_instruction(Runtime::Opcode::push_null);
                 } break; case Frontend::TokenTag::literal_true: case Frontend::TokenTag::literal_false: {
@@ -305,7 +305,7 @@ namespace Edna::Compile {
             c.scopes.emplace_back(SymbolScope {
                 .locations = {},
                 .title = c.current_name,
-                .next_local_id = 0,
+                .next_local_id = 1,
                 .next_const_id = 0
             });
             c.function_body_scope_depth++;

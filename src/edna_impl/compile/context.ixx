@@ -119,7 +119,7 @@ namespace Edna::Compile {
             scopes.emplace_back(SymbolScope {
                 .locations = {},
                 .title = "(global-body)",
-                .next_local_id = 0,
+                .next_local_id = 1,
                 .next_const_id = 0,
                 .is_of_func_body = true
             });
@@ -351,11 +351,12 @@ namespace Edna::Compile {
             return {};
         }
 
+        c.encode_instruction(Runtime::Opcode::ret);
+
         return Runtime::Program {
             .pre_heap = std::move(c.heap),
             .globals = std::move(c.globals),
-            .chunks = std::move(c.chunks),
-            .entry_chunk_id = 0
+            .chunks = std::move(c.chunks)
         };
     }
 }
