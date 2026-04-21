@@ -42,8 +42,8 @@ namespace Edna::Runtime {
 
         virtual std::string as_str(void* ctx) const = 0;
 
-        virtual bool call(void* ctx, std::uint8_t argc) = 0;
-        virtual bool call_as_ctor(void* ctx, std::uint8_t argc) = 0;
+        virtual const void* get_code_data() const noexcept = 0;
+        virtual const void* get_native_fn_ptr() const noexcept = 0;
     };
 
 

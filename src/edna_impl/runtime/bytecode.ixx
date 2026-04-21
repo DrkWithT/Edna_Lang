@@ -17,7 +17,8 @@ namespace Edna::Runtime {
         dup,
         push_null,
         push_bool,
-        push_self,
+        push_callee,
+        // TODO: add 'push_self' opcode!
         push_global,
         push_const,
         get_local,
@@ -68,7 +69,6 @@ namespace Edna::Runtime {
         ObjectHeap<Value> pre_heap;
         std::vector<Value> globals;
         std::vector<Chunk> chunks;
-        int entry_chunk_id;
     };
 
     export void disassemble_program(const Program& program) {
@@ -77,7 +77,7 @@ namespace Edna::Runtime {
             "dup",
             "push_null",
             "push_bool",
-            "push_self",
+            "push_callee",
             "push_global",
             "push_const",
             "get_local",
@@ -112,43 +112,33 @@ namespace Edna::Runtime {
         };
 
         static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constants_names = {
+            "nan",
             "null",
             "boolean",
             "integer",
+            "real",
             "local_id",
             "heap_id"
         };
 
-        const auto& [program_heap, program_globals, program_chunks, program_entry_id] = program;
+        const auto& [program_heap, program_globals, program_chunk] = program;
 
         std::println("\x1b[1;33mProgram dump:\x1b[0m\n\n");
 
-        for (auto chunk_id = 0; const auto& [chunk_constants, chunk_code] : program_chunks) {
-            std::println("\x1b[1;33mChunk {}\x1b[0m\n", chunk_id);
+        const auto& [chunk_constants, chunk_code] = program_chunk.back();
 
-            for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
-                if (constant_v.is_nan()) {
-                    std::println(
-                        "constant {}: tag: {}, scalar: {}",
-                        constant_id,
-                        constants_names.at(
-                            std::to_underlying(constant_v.hint())
-                        ),
-                        constant_v.scalar()
-                    );
-                } else {
-                    std::println("constant {}: tag: {}, data: {}", constant_id, "real", constant_v.as_double());
-                }
+        std::println("\x1b[1;33mMain Chunk:\x1b[0m\n");
 
-                constant_id++;
-            }
+        for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
+            std::println("constant {} : ", constant_id);
+            display_value(constant_v);
 
-            for (auto instruction_pos = 0; const auto& [instruction_op, instruction_arg] : chunk_code) {
-                std::println("{}: {} {}", instruction_pos, opcode_names.at(std::to_underlying(instruction_op)), instruction_arg);
-                instruction_pos++;
-            }
+            constant_id++;
+        }
 
-            chunk_id++;
+        for (auto instruction_pos = 0; const auto& [instruction_op, instruction_arg] : chunk_code) {
+            std::println("{}: {} {}", instruction_pos, opcode_names.at(std::to_underlying(instruction_op)), instruction_arg);
+            instruction_pos++;
         }
     }
 }
