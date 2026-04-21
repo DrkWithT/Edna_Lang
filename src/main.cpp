@@ -2,9 +2,12 @@
 #include <string_view>
 #include <sstream>
 #include <fstream>
+#include <chrono>
 #include <print>
 
 import edna_impl;
+
+constexpr int edna_max_local_slots = 4096;
 
 [[nodiscard]] std::string read_source_file(const std::string& source_path) {
     std::ifstream reader {source_path};
@@ -33,14 +36,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    std::string_view arg_1 = argv[1];
     std::string arg_2 {};
 
-    if (std::string_view arg_1 = argv[1]; arg_1 == "info") {
+    if (arg_1 == "info") {
         std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
         return 0;
     } else if (arg_1 == "run" && argc == 3) {
         arg_2 = argv[2];
-    } else {
+    } else if (arg_1 != "dump") {
         std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
         return 1;
     }
@@ -115,7 +119,27 @@ int main(int argc, char* argv[]) {
 
     if (!program_opt) {
         return 1;
+    } else if (arg_1 == "dump") {
+        Runtime::disassemble_program(program_opt.value());
+        return 0;
     }
 
-    Runtime::disassemble_program(program_opt.value());
+    Runtime::VM vm (
+        Runtime::EvalContext {
+            program_opt.value(),
+            edna_max_local_slots
+        }
+    );
+
+    auto run_begin = std::chrono::steady_clock::now();
+    auto status = vm.template run<Runtime::Handlers>();
+    auto running_time = std::chrono::steady_clock::now() - run_begin;
+
+    std::println("Runtime: \x1b[1;33m{}\x1b[0m ms", std::chrono::duration_cast<std::chrono::milliseconds>(running_time));
+
+    if (status != Runtime::EvalStatus::ok) {
+        return 1;
+    }
+
+    Runtime::display_value(vm.result());
 }
