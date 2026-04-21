@@ -3,10 +3,8 @@
 let fib = fun (n) => {
     cond {
         case n < 2 => n,
-        else => fib(n - 1) + fib(n - 2)
+        else => fib(n - 1) + fib (n - 2)
     }
 }
 
-let ans = fib(30)
-
-; print(ans)
+fib(30)
