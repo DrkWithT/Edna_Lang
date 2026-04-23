@@ -130,8 +130,13 @@ namespace Edna::Runtime {
         std::println("\x1b[1;33mMain Chunk:\x1b[0m\n");
 
         for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
-            std::println("constant {} : ", constant_id);
-            display_value(constant_v);
+            std::println("constant {}:", constant_id);
+
+            if (constant_v.hint() == ValueScalarHint::heap_id) {
+                std::println("{}", program_heap.at(static_cast<int>(constant_v.scalar()))->as_str(nullptr));
+            } else {
+                display_value(constant_v);
+            }
 
             constant_id++;
         }

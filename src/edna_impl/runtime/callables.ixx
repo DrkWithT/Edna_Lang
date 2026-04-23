@@ -7,6 +7,8 @@ module;
 #include <string>
 // #include <vector>
 #include <variant>
+#include <format>
+#include <sstream>
 
 export module edna.runtime.callables;
 
@@ -21,9 +23,59 @@ namespace Edna::Runtime {
         using bytecode_type = Chunk*;
 
     private:
+        static constexpr std::array<std::string_view, static_cast<std::size_t>(Opcode::last)> op_names = {
+            "nop",
+            "dup",
+            "push_null",
+            "push_bool",
+            "push_callee",
+            "push_global",
+            "push_const",
+            "get_local",
+            "set_local",
+            "get_prop",
+            "set_prop",
+            "pop",
+            "make_array",
+            "make_object",
+            "deref",
+            "negate_bool",
+            "negate_num",
+            "mod",
+            "mul",
+            "div",
+            "add",
+            "sub",
+            "compare_eq",
+            "compare_ne",
+            "compare_lt",
+            "compare_lte",
+            "compare_gt",
+            "compare_gte",
+            "test",
+            "jump",
+            "jump_back",
+            "jump_if",
+            "jump_else",
+            "call_ctor",
+            "call_fun",
+            "ret"
+        };
+
+        static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constant_tags = {
+            "nan",
+            "null",
+            "boolean",
+            "integer",
+            "real",
+            "local_id",
+            "heap_id"
+        };
+
         properties m_properties;
         items m_indexables;
 
+        std::size_t m_code_size;
         std::unique_ptr<Chunk> m_chunk; // TODO: make a NativeCallable type below this entire class.
 
         std::uint8_t m_arity;
@@ -31,7 +83,7 @@ namespace Edna::Runtime {
 
     public:
         explicit Callable(Chunk chunk, std::uint8_t expected_arity, bool is_ctor) noexcept
-        : m_chunk (std::make_unique<Chunk>(std::move(chunk))), m_properties {}, m_indexables {}, m_arity {expected_arity}, m_is_ctor {is_ctor} {}
+        : m_code_size {chunk.code.size()}, m_chunk (std::make_unique<Chunk>(std::move(chunk))), m_properties {}, m_indexables {}, m_arity {expected_arity}, m_is_ctor {is_ctor} {}
 
         [[nodiscard]] bool test(void* ctx) const noexcept override {
             return true;
@@ -74,7 +126,34 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] std::string as_str(void* ctx) const override {
-            return std::string {"Callable {...}"}; // todo
+            std::ostringstream sout;
+
+            sout << "Callable (...) {\n";
+
+            for (auto constant_id = 0; const auto& constant_v : m_chunk->consts) {
+                sout << std::format(
+                    "constant {}: [tag = {}, scalar = {}]\n",
+                    constant_id,
+                    constant_tags.at(static_cast<std::size_t>(constant_v.hint())),
+                    constant_v.scalar()
+                );
+                constant_id++;
+            }
+
+            for (std::size_t instruction_pos = 0; instruction_pos < m_code_size; instruction_pos++) {
+                const auto [opcode, arg] = m_chunk->code.at(instruction_pos);
+
+                sout << std::format(
+                    "  {}: {} {}\n",
+                    instruction_pos,
+                    op_names.at(static_cast<std::uint32_t>(opcode)),
+                    static_cast<std::uint32_t>(arg)
+                );
+            }
+
+            sout << "}";
+
+            return sout.str();
         }
 
         [[nodiscard]] const void* get_code_data() const noexcept override {
