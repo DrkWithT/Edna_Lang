@@ -47,10 +47,10 @@ namespace Edna::Compile {
                 return false;
             }
 
-            if (!c.within_assignable) {
-                //? Here, this check ensures that "non-assignable" values (basically anything not in a LHS) are deeply cloned for proper computation of RHS expressions. One case of the context.within_assignable flag being set is during evaluating assignments / variable initializers.
-                c.encode_instruction(Runtime::Opcode::deref);
-            }
+            // if (!c.within_assignable) {
+            //     //? Here, this check ensures that "non-assignable" values (basically anything not in a LHS) are deeply cloned for proper computation of RHS expressions. One case of the context.within_assignable flag being set is during evaluating assignments / variable initializers.
+            //     c.encode_instruction(Runtime::Opcode::deref);
+            // }
 
             return true;
         }
@@ -392,11 +392,12 @@ namespace Edna::Compile {
                 saved_key_count = key_count_guard.current();
                 
                 if (c.access_depth == 0 && !c.within_assignable) {
+                    //? GET_PROP derefs its result value implicitly.
                     c.encode_instruction(Runtime::Opcode::get_prop, key_count_guard.current());
 
-                    if (!c.within_assignable) {
-                        c.encode_instruction(Runtime::Opcode::deref);
-                    }
+                    // if (!c.within_assignable) {
+                    //     c.encode_instruction(Runtime::Opcode::deref);
+                    // }
                 }
             }
 

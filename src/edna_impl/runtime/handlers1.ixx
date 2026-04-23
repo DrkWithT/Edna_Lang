@@ -24,8 +24,8 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_dup(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            stack[c.sp + 1] = stack[c.sp];
             c.sp++;
+            stack[c.sp] = stack[c.sp];
             ip++;
 
             [[clang::musttail]]
@@ -33,8 +33,8 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_push_null(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            stack[c.sp + 1] = Value::create_from_dud();
             c.sp++;
+            stack[c.sp] = Value::create_from_dud();
             ip++;
 
             [[clang::musttail]]
@@ -42,8 +42,8 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_push_bool(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            stack[c.sp + 1] = Value::create_from_bool(ip->arg);
             c.sp++;
+            stack[c.sp] = Value::create_from_bool(ip->arg);
             ip++;
 
             [[clang::musttail]]
@@ -55,8 +55,8 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_push_callee(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            stack[c.sp + 1] = stack[c.bp];
             c.sp++;
+            stack[c.sp] = stack[c.bp];
             ip++;
 
             [[clang::musttail]]
@@ -64,8 +64,8 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_push_const(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            stack[c.sp + 1] = cvp[ip->arg];
             c.sp++;
+            stack[c.sp] = cvp[ip->arg];
             ip++;
 
             [[clang::musttail]]
@@ -73,16 +73,23 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_get_local(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            stack[c.sp + 1] = stack[c.bp + ip->arg];
             c.sp++;
+
+            if (const Value temp = stack[c.bp + ip->arg]; temp.hint() == ValueScalarHint::local_id) {
+                stack[c.sp] = stack[c.bp + temp.scalar()];
+            } else {
+                stack[c.sp] = temp;
+            }
+
             ip++;
-            
+
             [[clang::musttail]]
             return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_set_local(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             stack[c.bp + ip->arg] = stack[c.sp];
+            c.sp--;
             ip++;
 
             [[clang::musttail]]
@@ -117,29 +124,20 @@ namespace Edna::Runtime {
             return EvalStatus::unsupported_op;
         }
 
+        // TODO: Should be for iterator.next() later on ??
         [[nodiscard]] static constexpr EvalStatus op_deref(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            Value temp {stack[c.sp]};
-
-            if (temp.hint() == ValueScalarHint::local_id) {
-                stack[c.sp] = stack[c.bp + temp.scalar()];
-            }
-
-            ip++;
-
-            [[clang::musttail]]
-            return dispatch(c, ip, cvp, stack);
+            return EvalStatus::unsupported_op;
         }
 
         [[nodiscard]] static constexpr EvalStatus op_negate_bool(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            const auto& temp = stack[c.sp];
+            c.sp++;
 
-            if (!temp.is_nan() || temp.hint() != ValueScalarHint::boolean) {
-                stack[c.sp + 1] = Value::create_as_nan();
+            if (const Value temp = stack[c.sp - 1]; !temp.is_nan() || temp.hint() != ValueScalarHint::boolean) {
+                stack[c.sp] = Value::create_as_nan();
             } else {
-                stack[c.sp + 1] = Value::create_from_bool(temp.scalar() == 0);
+                stack[c.sp] = Value::create_from_bool(temp.scalar() == 0);
             }
 
-            c.sp++;
             ip++;
 
             [[clang::musttail]]
@@ -147,16 +145,17 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_negate_num(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            if (Value temp = stack[c.sp]; !temp.is_nan()) {
-                stack[c.sp + 1] = Value::create_from_double(-temp.as_double());
+            c.sp++;
+
+            if (const Value temp = stack[c.sp - 1]; !temp.is_nan()) {
+                stack[c.sp] = Value::create_from_double(-temp.as_double());
             } else if (temp.hint() == ValueScalarHint::integer) {
-                stack[c.sp + 1] = Value::create_from_int(-temp.scalar());
+                stack[c.sp] = Value::create_from_int(-temp.scalar());
             } else {
                 //? Handle NaN case: -NaN is still NaN !
-                stack[c.sp + 1] = Value::create_as_nan();
+                stack[c.sp] = Value::create_as_nan();
             }
 
-            c.sp++;
             ip++;
 
             [[clang::musttail]]
@@ -170,14 +169,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_mul(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() * rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
                     case ValueScalarHint::boolean: case ValueScalarHint::integer:
                         stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
                         break;
-                    case ValueScalarHint::null: default:
+                    default:
                         stack[c.sp] = Value::create_as_nan();
                         break;
                 }
@@ -196,7 +195,7 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_div(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; lhs.hint() == ValueScalarHint::real && rhs.hint() == ValueScalarHint::real) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; lhs.hint() == ValueScalarHint::real && rhs.hint() == ValueScalarHint::real) {
                 if (const auto lhs_float = lhs.as_double(), rhs_float = rhs.as_double(); lhs_float == 0.0 && rhs_float == 0.0) {
                     stack[c.sp] = Value::create_as_nan();
                 } else if (lhs_float > 0.0 && rhs_float == 0.0) {
@@ -229,14 +228,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_add(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() + rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
                     case ValueScalarHint::boolean: case ValueScalarHint::integer:
                         stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
                         break;
-                    case ValueScalarHint::null: default:
+                    default:
                         stack[c.sp] = Value::create_as_nan();
                         break;
                 }
@@ -255,14 +254,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_sub(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() - rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
                     case ValueScalarHint::boolean: case ValueScalarHint::integer:
                         stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
                         break;
-                    case ValueScalarHint::null: default:
+                    default:
                         stack[c.sp] = Value::create_as_nan();
                         break;
                 }
@@ -312,7 +311,7 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_compare_ne(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_bool(lhs.as_double() != rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
@@ -342,19 +341,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_compare_lt(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_bool(lhs.as_double() < rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                case ValueScalarHint::null:
-                    stack[c.sp] = Value::create_from_bool(false);
-                    break;
                 case ValueScalarHint::boolean:
                 case ValueScalarHint::integer:
                     stack[c.sp] = Value::create_from_bool(lhs.scalar() < rhs.scalar());
                     break;
-                case ValueScalarHint::local_id:
-                case ValueScalarHint::heap_id:
                 default:
                     stack[c.sp] = Value::create_from_bool(false);
                     break;
@@ -372,19 +366,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_compare_lte(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_bool(lhs.as_double() <= rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                case ValueScalarHint::null:
-                    stack[c.sp] = Value::create_from_bool(false);
-                    break;
                 case ValueScalarHint::boolean:
                 case ValueScalarHint::integer:
                     stack[c.sp] = Value::create_from_bool(lhs.scalar() <= rhs.scalar());
                     break;
-                case ValueScalarHint::local_id:
-                case ValueScalarHint::heap_id:
                 default:
                     stack[c.sp] = Value::create_from_bool(false);
                     break;
@@ -402,19 +391,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_compare_gt(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_bool(lhs.as_double() > rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                case ValueScalarHint::null:
-                    stack[c.sp] = Value::create_from_bool(false);
-                    break;
                 case ValueScalarHint::boolean:
                 case ValueScalarHint::integer:
                     stack[c.sp] = Value::create_from_bool(lhs.scalar() > rhs.scalar());
                     break;
-                case ValueScalarHint::local_id:
-                case ValueScalarHint::heap_id:
                 default:
                     stack[c.sp] = Value::create_from_bool(false);
                     break;
@@ -432,19 +416,14 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_compare_gte(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_bool(lhs.as_double() >= rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                case ValueScalarHint::null:
-                    stack[c.sp] = Value::create_from_bool(false);
-                    break;
                 case ValueScalarHint::boolean:
                 case ValueScalarHint::integer:
                     stack[c.sp] = Value::create_from_bool(lhs.scalar() >= rhs.scalar());
                     break;
-                case ValueScalarHint::local_id:
-                case ValueScalarHint::heap_id:
                 default:
                     stack[c.sp] = Value::create_from_bool(false);
                     break;
@@ -460,7 +439,7 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_test(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            if (Value temp = stack[c.sp]; !temp.is_nan()) {
+            if (const Value temp = stack[c.sp]; !temp.is_nan()) {
                 stack[c.sp + 1] = Value::create_from_bool(temp.as_double() != 0.0);
             } else {
                 switch (temp.hint()) {
@@ -473,7 +452,6 @@ namespace Edna::Runtime {
                 case ValueScalarHint::integer:
                     stack[c.sp + 1] = Value::create_from_bool(temp.scalar() != 0);
                     break;
-                case ValueScalarHint::local_id: case ValueScalarHint::heap_id:
                 default:
                     return EvalStatus::bad_op_arg;
                 }
@@ -500,7 +478,7 @@ namespace Edna::Runtime {
             return dispatch(c, ip, cvp, stack);
         }
 
-        [[nodiscard]] static constexpr EvalStatus op_jump_if(EvalContext& c, const Instruction* ip, const Value* cvp,   Value* stack) {
+        [[nodiscard]] static constexpr EvalStatus op_jump_if(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             if (stack[c.sp].scalar() != 0) {
                 ip += ip->arg;
             } else {

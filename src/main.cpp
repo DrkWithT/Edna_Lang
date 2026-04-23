@@ -42,10 +42,17 @@ int main(int argc, char* argv[]) {
     if (arg_1 == "info") {
         std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
         return 0;
-    } else if (arg_1 == "run" && argc == 3) {
-        arg_2 = argv[2];
-    } else if (arg_1 != "dump") {
+    }
+    
+    if ((arg_1 != "run" && arg_1 != "dump")) {
         std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
+        return 1;
+    }
+
+    if (argc == 3) {
+        arg_2 = argv[2];
+    } else {
+        std::println("Missing source file argument.");
         return 1;
     }
 
