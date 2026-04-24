@@ -38,7 +38,6 @@ namespace Edna::Compile {
                 auto local_info = c.record_local_symbol(name_lexeme);
 
                 c.encode_instruction(Runtime::Opcode::push_null);
-                c.encode_instruction(Runtime::Opcode::set_local, local_info->id);
 
                 return true;
             }

@@ -606,17 +606,32 @@ namespace Edna::Compile {
                 FlagGuard<bool> call_guard {&c.within_call, false};
                 FlagGuard<bool> assign_guard {&c.within_assignable, true};
 
-                if (!c.emit_expr(*dest_expr, source)) {
-                    return false;
-                }
-
-                if (!c.emit_expr(*source_expr, source)) {
-                    return false;
-                }
-
                 if (dest_expr->tag == Frontend::ExprTag::atom) {
-                    c.encode_instruction(Runtime::Opcode::set_local);
+                    const auto& [dest_name_token] = std::get<Frontend::Atom>(dest_expr->data);
+
+                    if (dest_name_token.tag != Frontend::TokenTag::identifier) {
+                        c.report_error("Destination of to-atom assignment must target a name.", dest_name_token.line);
+                        return false;
+                    }
+
+                    if (!c.emit_expr(*source_expr, source)) {
+                        return false;
+                    }
+
+                    if (auto dest_location = c.lookup_local_symbol(dest_name_token.as_string_from(source)); dest_location) {
+                        c.encode_instruction(Runtime::Opcode::set_local, dest_location->id);
+                    } else {
+                        return false;
+                    }
                 } else if (dest_expr->tag == Frontend::ExprTag::lhs) {
+                    if (!c.emit_expr(*dest_expr, source)) {
+                        return false;
+                    }
+
+                    if (!c.emit_expr(*source_expr, source)) {
+                        return false;
+                    }
+
                     c.encode_instruction(Runtime::Opcode::set_prop, c.key_count);
                 } else {
                     c.report_error("Found invalid assignment LHS- only identifier atoms or key / property accesses are valid.", expr_line);
