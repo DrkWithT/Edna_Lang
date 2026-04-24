@@ -766,11 +766,32 @@ namespace Edna::Frontend {
             const auto expr_stmt_line = m_current.line;
 
             ParseGuard guard {m_infos, expr_stmt_lexeme_begin, std::to_underlying(StmtTag::expr_stmt), ExprInfoOpt {}};
-            ExprPtr inner_expr = parse_or(lexer, source);
+            ExprPtr lhs_expr = parse_call(lexer, source);
+
+            if (match_token(TokenTag::op_assign)) {
+                consume(lexer, source);
+                ExprPtr rhs_expr = parse_or(lexer, source);
+
+                return std::make_unique<StmtNode>(StmtNode {
+                    .data = ExprStmt {
+                        .inner = std::make_unique<ExprNode>(ExprNode {
+                            .data = Assign {
+                                .dest = std::move(lhs_expr),
+                                .src = std::move(rhs_expr)
+                            },
+                            .line = expr_stmt_line,
+                            .tag = ExprTag::assign
+                        })
+                    },
+                    .line = expr_stmt_line,
+                    .trailing = false,
+                    .tag = StmtTag::expr_stmt
+                });
+            }
 
             return std::make_unique<StmtNode>(StmtNode {
                 .data = ExprStmt {
-                    .inner = std::move(inner_expr)
+                    .inner = std::move(lhs_expr)
                 },
                 .line = expr_stmt_line,
                 .trailing = false,
