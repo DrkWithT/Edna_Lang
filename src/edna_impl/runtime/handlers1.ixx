@@ -511,8 +511,8 @@ namespace Edna::Runtime {
             } else if (auto chunk_addr = object->get_code_data(); !chunk_addr) {
                 return EvalStatus::bad_op_arg;
             } else {
-                //? NOTE: If the VM object is callable, fetch its bytecode chunk as a pointer, saving / restoring caller state via the native stack.
-                // const Instructionion* caller_ret_ip_v = ip + 1;
+                //? NOTE: If the VM object is callable, fetch its bytecode chunk as a pointer, saving / restoring caller state via the NATIVE stack.
+                // const Instruction* caller_ret_ip_v = ip + 1;
                 const auto chunk_p = reinterpret_cast<const Chunk*>(chunk_addr);
                 const std::uint16_t caller_bp_v = c.bp;
                 const std::uint16_t callee_bp_v = c.sp - ip->arg;

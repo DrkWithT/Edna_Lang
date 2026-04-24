@@ -28,7 +28,7 @@ namespace Edna::Runtime {
         pop,
         make_array,
         make_object,
-        deref, //! replace both value.ixx ~ line#146, 157
+        deref,
         negate_bool,
         negate_num,
         mod,

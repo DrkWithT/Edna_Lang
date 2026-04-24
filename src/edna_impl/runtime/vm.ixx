@@ -24,7 +24,7 @@ namespace Edna::Runtime {
             return m_context;
         }
 
-        //? NOTE 1: Handlers must be a struct providing decoupled opcode handlers for the bytecode VM- All its methods must be static and take some specific parameter types. These types must be an `EvalContext&` besides `Value*` for the local-values and stack. For every Policy type passed into a Handlers specialization, a distinct kind of handler provider is instanstiated e.g by version, mock/release, etc.
+        //? NOTE 1: Handlers must be a struct providing decoupled opcode handlers for the bytecode VM- All its methods must be static and take some specific parameter types. These types must be an `EvalContext&` besides `Value*` for the local-values and stack.
         //? NOTE 2: these handlers must be TCO (tail-call dispatched).
         template <typename Handlers> requires requires (Handlers h) { {Handlers::dispatch}; }
         [[nodiscard]] constexpr EvalStatus run() {
