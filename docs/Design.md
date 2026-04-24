@@ -43,7 +43,7 @@ let pairProto = frozen {
     display: fun () {
         mut s = ''
 
-        ret s.append(self.first).append(',').append(self.second)
+        s.append(self.first).append(',').append(self.second)
     }
 }
 
@@ -69,7 +69,7 @@ fun matchAny(arg, ...targets) => targets.any(
 ctor Pair(a, b) extends pairProto => {
     self.first = a
     self.second = b
-    ret self
+    self
 }
 
 let printingPair = new Pair(10, 20)

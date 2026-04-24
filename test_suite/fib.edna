@@ -7,4 +7,4 @@ let fib = fun (n) => {
     }
 }
 
-fib(30)
+fib(35)
