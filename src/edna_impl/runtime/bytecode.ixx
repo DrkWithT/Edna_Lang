@@ -49,6 +49,7 @@ namespace Edna::Runtime {
         jump_else,
         call_ctor,
         call_fun,
+        call_native,
         ret,
         // throw_obj,
         // catch_obj
@@ -108,6 +109,7 @@ namespace Edna::Runtime {
             "jump_else",
             "call_ctor",
             "call_fun",
+            "call_native",
             "ret"
         };
 

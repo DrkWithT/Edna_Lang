@@ -1,12 +1,12 @@
 module;
 
 #include <utility>
-#include <type_traits>
+// #include <type_traits>
 #include <memory>
-#include <algorithm>
+// #include <algorithm>
 #include <string>
-// #include <vector>
-#include <variant>
+#include <array>
+#include <vector>
 #include <format>
 #include <sstream>
 
@@ -19,7 +19,6 @@ namespace Edna::Runtime {
     public:
         using properties = typename ObjectBase::properties;
         using items = typename ObjectBase::items;
-        using native_type = EvalStatus(*)(Runtime::EvalContext*, std::uint8_t argc);
         using bytecode_type = Chunk*;
 
     private:
@@ -59,6 +58,7 @@ namespace Edna::Runtime {
             "jump_else",
             "call_ctor",
             "call_fun",
+            "call_native"
             "ret"
         };
 
@@ -117,11 +117,11 @@ namespace Edna::Runtime {
             ; // todo
         }
 
-        [[nodiscard]] const Value* get_prototype(void* ctx, bool use_proto) const noexcept override {
+        [[nodiscard]] const ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) const noexcept override {
             return nullptr;
         }
 
-        [[nodiscard]] Value* get_prototype(void* ctx, bool use_proto) noexcept override {
+        [[nodiscard]] ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) noexcept override {
             return nullptr;
         }
 
@@ -160,8 +160,71 @@ namespace Edna::Runtime {
             return m_chunk.get();
         }
 
-        [[nodiscard]] const void* get_native_fn_ptr() const noexcept override {
+        [[nodiscard]] native_routine_type get_native_fn_ptr() const noexcept override {
             return nullptr;
+        }
+    };
+
+    export class NativeCallable : public ObjectBase<Value> {
+    private:
+        native_routine_type m_native_fp;
+
+    public:
+        constexpr NativeCallable(native_routine_type fp) noexcept
+        : m_native_fp {fp} {}
+
+        [[nodiscard]] bool test(void* ctx) const noexcept override {
+            return m_native_fp != nullptr;
+        }
+
+        [[nodiscard]] bool lt(void* ctx, const ObjectBase& object) const noexcept override {
+            return false;
+        }
+
+        [[nodiscard]] bool gt(void* ctx, const ObjectBase& object) const noexcept override {
+            return false;
+        }
+
+        [[nodiscard]] bool equals(void* ctx, const ObjectBase& object) const noexcept override {
+            return object.get_native_fn_ptr() == m_native_fp;
+        }
+
+        [[nodiscard]] const ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) const noexcept override {
+            return nullptr;
+        }
+
+        [[nodiscard]] ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) noexcept override {
+            return nullptr;
+        }
+
+        [[nodiscard]] Value get_property(void* ctx, Value key, bool use_protos) override {
+            ; // todo
+            return Value::create_from_dud();
+        }
+
+        [[nodiscard]] Value get_property(void* ctx, int pos, bool use_protos) override {
+            ; // todo
+            return Value::create_from_dud();
+        }
+
+        void set_property(void* ctx, Value key, bool use_protos) override {
+            ; // todo
+        }
+
+        void set_property(void* ctx, int pos, bool use_protos) override {
+            ; // todo
+        }
+
+        [[nodiscard]] std::string as_str(void* ctx) const override {
+            return std::format("NativeCallable({}) {{...}}", reinterpret_cast<void*>(m_native_fp));
+        }
+
+        [[nodiscard]] const void* get_code_data() const noexcept override {
+            return nullptr;
+        }
+
+        [[nodiscard]] native_routine_type get_native_fn_ptr() const noexcept override {
+            return m_native_fp;
         }
     };
 }

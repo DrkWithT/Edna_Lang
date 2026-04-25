@@ -10,6 +10,16 @@ module;
 export module edna.runtime.objects;
 
 namespace Edna::Runtime {
+    export enum class EvalStatus : std::uint8_t {
+        pending,
+        ok,
+        memory,
+        bad_op_arg,
+        unsupported_op
+    };
+
+    export using native_routine_type = EvalStatus(*)(void*, std::uint8_t argc);
+
     template <typename V>
     struct PropertyEntry {
         V key;
@@ -32,8 +42,8 @@ namespace Edna::Runtime {
         virtual bool gt(void* ctx, const ObjectBase& object) const noexcept = 0;
         virtual bool equals(void* ctx, const ObjectBase& object) const noexcept = 0;
 
-        virtual const V* get_prototype(void* ctx, bool use_proto) const noexcept = 0;
-        virtual V* get_prototype(void* ctx, bool use_proto) noexcept = 0;
+        virtual const ObjectBase* get_prototype(void* ctx, bool use_proto) const noexcept = 0;
+        virtual ObjectBase* get_prototype(void* ctx, bool use_proto) noexcept = 0;
 
         virtual V get_property(void* ctx, V key, bool use_protos) = 0;
         virtual V get_property(void* ctx, int pos, bool use_protos) = 0;
@@ -43,7 +53,7 @@ namespace Edna::Runtime {
         virtual std::string as_str(void* ctx) const = 0;
 
         virtual const void* get_code_data() const noexcept = 0;
-        virtual const void* get_native_fn_ptr() const noexcept = 0;
+        virtual native_routine_type get_native_fn_ptr() const noexcept = 0;
     };
 
 

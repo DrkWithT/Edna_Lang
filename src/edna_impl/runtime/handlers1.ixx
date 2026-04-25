@@ -51,7 +51,13 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_push_global(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            // TODO: use argument of opcode as globals index.
+            c.sp++;
+            stack[c.sp] = c.globals.at(ip->arg);
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_push_callee(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
@@ -281,7 +287,7 @@ namespace Edna::Runtime {
         [[nodiscard]] static constexpr EvalStatus op_compare_eq(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp--;
 
-            if (Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
+            if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_bool(lhs.as_double() == rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
@@ -535,6 +541,20 @@ namespace Edna::Runtime {
             return dispatch(c, ip + 1, cvp, stack);
         }
 
+        [[nodiscard]] static constexpr EvalStatus op_call_native(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+            if (auto object = c.heap.at(static_cast<int>(stack[c.sp - static_cast<std::uint32_t>(ip->arg)].scalar())); object == nullptr) {
+                return EvalStatus::bad_op_arg;
+            } else if (auto native_fp = object->get_native_fn_ptr(); !native_fp) {
+                return EvalStatus::bad_op_arg;
+            } else {
+                c.status = native_fp(std::addressof(c), static_cast<std::uint8_t>(ip->arg));
+                ip++;
+            }
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
+        }
+
         [[nodiscard]] static constexpr EvalStatus op_ret(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.depth--;
 
@@ -566,7 +586,7 @@ namespace Edna::Runtime {
             &op_mod, op_mul, &op_div, op_add, &op_sub,
             &op_compare_eq, &op_compare_ne, &op_compare_lt, &op_compare_lte, &op_compare_gt, &op_compare_gte, &op_test,
             &op_jump, &op_jump_back, &op_jump_if, &op_jump_else,
-            &op_call_ctor, &op_call_fun, &op_ret
+            &op_call_ctor, &op_call_fun, &op_call_native, &op_ret
         };
 
         static constexpr EvalStatus dispatch(EvalContext& context, const Instruction* ip, const Value* constants, Value* stack) {
