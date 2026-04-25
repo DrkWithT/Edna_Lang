@@ -39,23 +39,9 @@ symbol `?` prec unary `-` = fun (a) => a == null
 ; use custom null-check operator
 let isAnswer = ?foo
 
-let pairProto = frozen {
-    display: fun () {
-        mut s = ''
+fun answer(x) uses (foo, bar, baz) => x + foo
 
-        s.append(self.first).append(',').append(self.second)
-    }
-}
-
-let person = frozen {
-    name: 'Jane Doe',
-    age: 23,
-    proto: pairProto
-}
-
-fun answer(x) uses foo => x + foo
-
-fun fib(n) => {
+fun fib(n) {
     cond {
         case n < 2 => { n }
         else => { fib(n - 1) + fib(n - 2) }
@@ -72,7 +58,13 @@ ctor Pair(a, b) extends pairProto => {
     self
 }
 
-let printingPair = new Pair(10, 20)
+let printingPair = Pair(10, 20)
 
 print(printingPair.display())
 ```
+
+#### Roadmap
+ 1. Add native print function support. **WIP**
+ 2. Implement native prototype support: This is crucial for lists!
+ 3. Add lists.
+ 4. Add simple method call support for lists.

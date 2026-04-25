@@ -2,7 +2,6 @@
 
 let foo = 15
 let bar = 27
-let ans = 0
+let ans = print(foo + bar)
 
-ans = foo + bar
 ans
