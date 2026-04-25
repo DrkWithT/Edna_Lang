@@ -1,5 +1,6 @@
 #include <string>
 #include <string_view>
+#include <span>
 #include <sstream>
 #include <fstream>
 #include <chrono>
@@ -27,6 +28,25 @@ constexpr int edna_max_local_slots = 4096;
     return sout.str();
 }
 
+//? NOTE: `opaque_context` MUST point to a mutable `EvalContext` object. This allows native functions to alter any runtime state as needed.
+[[nodiscard]] Edna::Runtime::EvalStatus native_print(void* opaque_context, std::uint8_t argc) {
+    auto vm_context = reinterpret_cast<Edna::Runtime::EvalContext*>(opaque_context);
+    const std::uint32_t callee_bp = vm_context->sp - argc;
+
+    const std::span<Edna::Runtime::Value> arguments {vm_context->stack.get() + callee_bp + 1, static_cast<std::uint32_t>(argc)};
+
+    for (const auto& value_ref : arguments) {
+        Edna::Runtime::display_value(value_ref);
+        std::print(" ");
+    }
+    std::println("");
+
+    vm_context->sp = callee_bp - 1;
+    vm_context->stack[vm_context->sp] = Edna::Runtime::Value::create_from_dud();
+
+    return Edna::Runtime::EvalStatus::pending;
+}
+
 // todo: refactor all setup + interpreter logic into a driver class later.
 int main(int argc, char* argv[]) {
     using namespace Edna;
@@ -36,7 +56,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string_view arg_1 = argv[1];
+    const std::string_view arg_1 = argv[1];
     std::string arg_2 {};
 
     if (arg_1 == "info") {
@@ -93,8 +113,7 @@ int main(int argc, char* argv[]) {
     lexer.add_edna_lexical(".", Frontend::TokenTag::dot);
     lexer.add_edna_lexical("...", Frontend::TokenTag::ellipses);
 
-    std::string_view source_view {source_string};
-    Frontend::Token temp;
+    const std::string_view source_view {source_string};
 
     lexer.use_source(source_view);
 
@@ -121,6 +140,10 @@ int main(int argc, char* argv[]) {
 
     compiler_state.add_stmt_emitter(Frontend::StmtTag::vars, std::make_unique<Compile::VarsEmitter>());
     compiler_state.add_stmt_emitter(Frontend::StmtTag::expr_stmt, std::make_unique<Compile::ExprStmtEmitter>());
+
+    std::unique_ptr<Runtime::ObjectBase<Runtime::Value>> print_ptr = std::make_unique<Runtime::NativeCallable>(&native_print);
+
+    compiler_state.record_global_symbol("print", std::move(print_ptr));
 
     auto program_opt = Compile::compile_all(compiler_state, ast_decls, source_string);
 
