@@ -64,7 +64,11 @@ print(printingPair.display())
 ```
 
 #### Roadmap
- 1. Add native print function support. **WIP**
- 2. Implement native prototype support: This is crucial for lists!
- 3. Add lists.
- 4. Add simple method call support for lists.
+ 1. Add native print function support. **OK**
+ 2. Refactor bytecode compiler & runtime into classes.
+ 3. Add peephole optimization passes for bytecode:
+    - Place super instructions.
+    - Remove non-trailing NOPs.
+ 4. Implement native prototype support: This is crucial for lists!
+ 5. Add lists.
+ 6. Add simple method call support for lists.

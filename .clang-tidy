@@ -1,2 +1,4 @@
-Checks: bugprone-unused-*,bugprone-switch-missing-default-case,bugprone-empty-catch,bugprone-unused-return-value,bugprone-use-after-move,bugprone-virtual-near-miss,bugprone-string-constructor,misc-misleading-identifier,misc-confusable-identifiers,misc-const-correctness
+Checks:
+  bugprone-unused-*,bugprone-switch-missing-default-case,bugprone-empty-catch,bugprone-suspicious-semicolon,bugprone-unused-return-value,bugprone-use-after-move,bugprone-unused-raii,bugprone-virtual-near-miss,bugprone-string-constructor,
+  misc-misleading-identifier,misc-confusable-identifiers,misc-const-correctness
 WarningsAsErrors: false
