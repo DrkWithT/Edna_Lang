@@ -39,23 +39,9 @@ symbol `?` prec unary `-` = fun (a) => a == null
 ; use custom null-check operator
 let isAnswer = ?foo
 
-let pairProto = frozen {
-    display: fun () {
-        mut s = ''
+fun answer(x) uses (foo, bar, baz) => x + foo
 
-        ret s.append(self.first).append(',').append(self.second)
-    }
-}
-
-let person = frozen {
-    name: 'Jane Doe',
-    age: 23,
-    proto: pairProto
-}
-
-fun answer(x) uses foo => x + foo
-
-fun fib(n) => {
+fun fib(n) {
     cond {
         case n < 2 => { n }
         else => { fib(n - 1) + fib(n - 2) }
@@ -69,10 +55,20 @@ fun matchAny(arg, ...targets) => targets.any(
 ctor Pair(a, b) extends pairProto => {
     self.first = a
     self.second = b
-    ret self
+    self
 }
 
-let printingPair = new Pair(10, 20)
+let printingPair = Pair(10, 20)
 
 print(printingPair.display())
 ```
+
+#### Roadmap
+ 1. Add native print function support. **OK**
+ 2. Refactor bytecode compiler & runtime into classes.
+ 3. Add peephole optimization passes for bytecode:
+    - Place super instructions.
+    - Remove non-trailing NOPs.
+ 4. Implement native prototype support: This is crucial for lists!
+ 5. Add lists.
+ 6. Add simple method call support for lists.

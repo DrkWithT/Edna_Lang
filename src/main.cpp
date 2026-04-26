@@ -1,27 +1,154 @@
 #include <string>
 #include <string_view>
+#include <span>
 #include <sstream>
 #include <fstream>
+#include <chrono>
 #include <print>
 
 import edna_impl;
 
-[[nodiscard]] std::string read_source_file(const std::string& source_path) {
-    std::ifstream reader {source_path};
+constexpr std::string_view edna_ascii_art = " ___        _            \n"
+                                            "(  _ \\    ( )            \n"
+                                            "| (_(_)  _| | ___    _ _ \n"
+                                            "|  _)_ / _  |  _  \\/ _  )\n"
+                                            "| (_( ) (_| | ( ) | (_| |\n"
+                                            "(____/ \\__ _)_) (_)\\__ _)\n";
 
-    if (!reader.is_open()) {
-        return {""};
+namespace Edna {
+    struct Configs {
+        std::string_view name;
+        std::string_view author;
+        std::size_t heap_populate_capacity;
+        std::size_t local_capacity;
+        std::uint16_t v_major;
+        std::uint16_t v_minor;
+        std::uint16_t v_patch;
+    };
+
+    class Driver {
+    private:
+        Frontend::Lexer m_lexer;
+        Compile::CompileContext m_compiler;
+        Configs m_info;
+        bool m_allow_bytecode_dump;
+
+        [[nodiscard]] std::string read_source(const std::string& source_path) {
+            std::ifstream reader {source_path};
+
+            if (!reader.is_open()) {
+                return {};
+            }
+
+            std::ostringstream sout;
+            std::string temp_line;
+
+            while (std::getline(reader, temp_line)) {
+                sout << temp_line << '\n';
+                temp_line.clear();
+            }
+
+            return sout.str();
+        }
+
+        [[nodiscard]] std::optional<Runtime::Program> compile_sources(const std::string& first_source_path) {
+            const std::string source = read_source(first_source_path);
+            const std::string_view source_view {source};
+
+            m_lexer.use_source(source_view);
+
+            Frontend::Parser parser {m_lexer, source_view};
+
+            auto ast_decls = parser(m_lexer, source_view);
+
+            if (ast_decls.empty()) {
+                return {};
+            }
+
+            return Compile::compile_all(m_compiler, ast_decls, source);
+        }
+
+    public:
+        constexpr Driver(Configs cfg)
+        : m_lexer {}, m_compiler {cfg.heap_populate_capacity}, m_info {cfg} {}
+
+        [[nodiscard]] constexpr const Configs& get_info() const noexcept {
+            return m_info;
+        }
+
+        constexpr void allow_bytecode_dump(bool b) noexcept {
+            m_allow_bytecode_dump = b;
+        }
+
+        void map_lexical(std::string_view lexeme, Frontend::TokenTag tag) {
+            m_lexer.add_edna_lexical(lexeme, tag);
+        }
+
+        template <typename Emitter> requires (std::is_base_of_v<Compile::ExprEmitterBase, Emitter>)
+        void add_expr_emitter(Frontend::ExprTag tag) noexcept {
+            m_compiler.add_expr_emitter(tag, std::make_unique<Emitter>());
+        }
+
+        template <typename Emitter> requires (std::is_base_of_v<Compile::StmtEmitterBase, Emitter>)
+        void add_stmt_emitter(Frontend::StmtTag tag) noexcept {
+            m_compiler.add_stmt_emitter(tag, std::make_unique<Emitter>());
+        }
+
+        void add_native_object(std::string name, std::unique_ptr<Runtime::ObjectBase<Runtime::Value>> object) noexcept {
+            m_compiler.record_global_symbol(name, std::move(object));
+        }
+
+        Runtime::EvalStatus execute_program(const std::string& main_file_path) {
+            auto program_option = compile_sources(main_file_path);
+
+            if (!program_option) {
+                return Runtime::EvalStatus::build_failure;
+            }
+
+            if (m_allow_bytecode_dump) {
+                Runtime::disassemble_program(*program_option);
+                return Runtime::EvalStatus::ok;
+            }
+
+            Runtime::VM vm {
+                Runtime::EvalContext {
+                    program_option.value(),
+                    m_info.local_capacity
+                }
+            };
+
+            auto run_begin = std::chrono::steady_clock::now();
+            auto status = vm.template run<Runtime::Handlers>();
+            auto running_time = std::chrono::steady_clock::now() - run_begin;
+
+            std::println("Runtime: \x1b[1;33m{}\x1b[0m ms", std::chrono::duration_cast<std::chrono::milliseconds>(running_time));
+
+            Runtime::display_value(vm.result());
+
+            return vm.context().status;
+        }
+    };
+}
+
+constexpr int edna_max_local_slots = 4096;
+
+//? NOTE: `opaque_context` MUST point to a mutable `EvalContext` object. This allows native functions to alter any runtime state as needed.
+[[nodiscard]] Edna::Runtime::EvalStatus native_print(void* opaque_context, std::uint8_t argc) {
+    auto vm_context = reinterpret_cast<Edna::Runtime::EvalContext*>(opaque_context);
+    const std::uint32_t callee_bp = vm_context->sp - argc;
+
+    const std::span<Edna::Runtime::Value> arguments {vm_context->stack.get() + callee_bp + 1, static_cast<std::uint32_t>(argc)};
+
+    for (const auto& value_ref : arguments) {
+        Edna::Runtime::display_value(value_ref);
+        std::print(" ");
     }
+    std::println("");
 
-    std::ostringstream sout;
-    std::string temp_line;
+    vm_context->sp = callee_bp - 1;
+    vm_context->stack[vm_context->sp] = Edna::Runtime::Value::create_from_dud();
 
-    while (std::getline(reader, temp_line)) {
-        sout << temp_line << '\n';
-        temp_line.clear();
-    }
-
-    return sout.str();
+    return Edna::Runtime::EvalStatus::pending;
 }
 
 // todo: refactor all setup + interpreter logic into a driver class later.
@@ -33,89 +160,94 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string arg_2 {};
+    Driver driver {
+        Configs {
+            .name = edna_ascii_art,
+            .author = "DrkWithT",
+            .heap_populate_capacity = 512,
+            .local_capacity = 4096,
+            .v_major = 0,
+            .v_minor = 1,
+            .v_patch = 0,
+        }
+    };
 
-    if (std::string_view arg_1 = argv[1]; arg_1 == "info") {
-        std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
+    const std::string_view arg_1 = argv[1];
+
+    if (arg_1 == "info") {
+        const auto& [name, author, dud_0, dud_1, v_major, v_minor, v_patch] = driver.get_info();
+
+        std::println("\x1b[1;36m{}\x1b[0m\nBy: {}\nVersion: {}.{}.{}\n\nUsage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n", name, author, v_major, v_minor, v_patch);
+
         return 0;
-    } else if (arg_1 == "run" && argc == 3) {
+    }
+
+    if ((arg_1 != "run" && arg_1 != "dump")) {
+        std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
+        return 1;
+    }
+
+    std::string arg_2;
+
+    if (argc == 3) {
         arg_2 = argv[2];
     } else {
-        std::println("Usage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n");
+        std::println("Missing source file argument.");
         return 1;
     }
 
-    auto source_string = read_source_file(arg_2);
+    driver.map_lexical("null", Frontend::TokenTag::literal_null);
+    driver.map_lexical("true", Frontend::TokenTag::literal_true);
+    driver.map_lexical("false", Frontend::TokenTag::literal_false);
+    driver.map_lexical("self", Frontend::TokenTag::keyword_self);
+    driver.map_lexical("fun", Frontend::TokenTag::keyword_fun);
+    driver.map_lexical("uses", Frontend::TokenTag::keyword_uses);
+    driver.map_lexical("let", Frontend::TokenTag::keyword_let);
+    driver.map_lexical("mut", Frontend::TokenTag::keyword_mut);
+    driver.map_lexical("cond", Frontend::TokenTag::keyword_cond);
+    driver.map_lexical("case", Frontend::TokenTag::keyword_case);
+    driver.map_lexical("else", Frontend::TokenTag::keyword_else);
+    driver.map_lexical("symbol", Frontend::TokenTag::keyword_symbol);
+    driver.map_lexical("prec", Frontend::TokenTag::keyword_prec);
+    driver.map_lexical("-", Frontend::TokenTag::op_neg);
+    driver.map_lexical("!", Frontend::TokenTag::op_bang);
+    driver.map_lexical("%", Frontend::TokenTag::op_mod);
+    driver.map_lexical("*", Frontend::TokenTag::op_mult);
+    driver.map_lexical("/", Frontend::TokenTag::op_div);
+    driver.map_lexical("+", Frontend::TokenTag::op_plus);
+    driver.map_lexical("-", Frontend::TokenTag::op_sub);
+    driver.map_lexical("==", Frontend::TokenTag::op_equals);
+    driver.map_lexical("!=", Frontend::TokenTag::op_unequal);
+    driver.map_lexical("<", Frontend::TokenTag::op_lesser);
+    driver.map_lexical(">", Frontend::TokenTag::op_greater);
+    driver.map_lexical("<=", Frontend::TokenTag::op_lte);
+    driver.map_lexical(">=", Frontend::TokenTag::op_gte);
+    driver.map_lexical("&&", Frontend::TokenTag::op_and);
+    driver.map_lexical("||", Frontend::TokenTag::op_or);
+    driver.map_lexical("=", Frontend::TokenTag::op_assign);
+    driver.map_lexical("=>", Frontend::TokenTag::arrow);
+    driver.map_lexical(".", Frontend::TokenTag::dot);
+    driver.map_lexical("...", Frontend::TokenTag::ellipses);
 
-    Frontend::Lexer lexer;
+    driver.add_expr_emitter<Compile::AtomEmitter>(Frontend::ExprTag::atom);
+    driver.add_expr_emitter<Compile::CondEmitter>(Frontend::ExprTag::cond);
+    driver.add_expr_emitter<Compile::BlockEmitter>(Frontend::ExprTag::block);
+    driver.add_expr_emitter<Compile::ArrayLiteralEmitter>(Frontend::ExprTag::array);
+    driver.add_expr_emitter<Compile::LambdaEmitter>(Frontend::ExprTag::lambda);
+    driver.add_expr_emitter<Compile::LhsEmitter>(Frontend::ExprTag::lhs);
+    driver.add_expr_emitter<Compile::CallEmitter>(Frontend::ExprTag::call);
+    driver.add_expr_emitter<Compile::UnaryEmitter>(Frontend::ExprTag::unary);
+    driver.add_expr_emitter<Compile::BinaryEmitter>(Frontend::ExprTag::binary);
+    driver.add_expr_emitter<Compile::AssignEmitter>(Frontend::ExprTag::assign);
 
-    lexer.add_edna_lexical("null", Frontend::TokenTag::literal_null);
-    lexer.add_edna_lexical("true", Frontend::TokenTag::literal_true);
-    lexer.add_edna_lexical("false", Frontend::TokenTag::literal_false);
-    lexer.add_edna_lexical("self", Frontend::TokenTag::keyword_self);
-    lexer.add_edna_lexical("fun", Frontend::TokenTag::keyword_fun);
-    lexer.add_edna_lexical("uses", Frontend::TokenTag::keyword_uses);
-    lexer.add_edna_lexical("let", Frontend::TokenTag::keyword_let);
-    lexer.add_edna_lexical("mut", Frontend::TokenTag::keyword_mut);
-    lexer.add_edna_lexical("cond", Frontend::TokenTag::keyword_cond);
-    lexer.add_edna_lexical("case", Frontend::TokenTag::keyword_case);
-    lexer.add_edna_lexical("else", Frontend::TokenTag::keyword_else);
-    lexer.add_edna_lexical("symbol", Frontend::TokenTag::keyword_symbol);
-    lexer.add_edna_lexical("prec", Frontend::TokenTag::keyword_prec);
-    lexer.add_edna_lexical("-", Frontend::TokenTag::op_neg);
-    lexer.add_edna_lexical("!", Frontend::TokenTag::op_bang);
-    lexer.add_edna_lexical("%", Frontend::TokenTag::op_mod);
-    lexer.add_edna_lexical("*", Frontend::TokenTag::op_mult);
-    lexer.add_edna_lexical("/", Frontend::TokenTag::op_div);
-    lexer.add_edna_lexical("+", Frontend::TokenTag::op_plus);
-    lexer.add_edna_lexical("-", Frontend::TokenTag::op_sub);
-    lexer.add_edna_lexical("==", Frontend::TokenTag::op_equals);
-    lexer.add_edna_lexical("!=", Frontend::TokenTag::op_unequal);
-    lexer.add_edna_lexical("<", Frontend::TokenTag::op_lesser);
-    lexer.add_edna_lexical(">", Frontend::TokenTag::op_greater);
-    lexer.add_edna_lexical("<=", Frontend::TokenTag::op_lte);
-    lexer.add_edna_lexical(">=", Frontend::TokenTag::op_gte);
-    lexer.add_edna_lexical("&&", Frontend::TokenTag::op_and);
-    lexer.add_edna_lexical("||", Frontend::TokenTag::op_or);
-    lexer.add_edna_lexical("=", Frontend::TokenTag::op_assign);
-    lexer.add_edna_lexical("=>", Frontend::TokenTag::arrow);
-    lexer.add_edna_lexical(".", Frontend::TokenTag::dot);
-    lexer.add_edna_lexical("...", Frontend::TokenTag::ellipses);
+    driver.add_stmt_emitter<Compile::VarsEmitter>(Frontend::StmtTag::vars);
+    driver.add_stmt_emitter<Compile::ExprStmtEmitter>(Frontend::StmtTag::expr_stmt);
 
-    std::string_view source_view {source_string};
-    Frontend::Token temp;
+    driver.add_native_object("print", std::make_unique<Runtime::NativeCallable>(&native_print));
 
-    lexer.use_source(source_view);
-
-    Frontend::Parser parser {lexer, source_view};
-
-    auto ast_decls = parser(lexer, source_view);
-
-    if (ast_decls.empty()) {
-        return 1;
+    if (arg_1 == "dump") {
+        driver.allow_bytecode_dump(true);
     }
 
-    Compile::CompileContext compiler_state;
-
-    compiler_state.add_expr_emitter(Frontend::ExprTag::atom, std::make_unique<Compile::AtomEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::cond, std::make_unique<Compile::CondEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::block, std::make_unique<Compile::BlockEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::array, std::make_unique<Compile::ArrayLiteralEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::lambda, std::make_unique<Compile::LambdaEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::lhs, std::make_unique<Compile::LhsEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::call, std::make_unique<Compile::CallEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::unary, std::make_unique<Compile::UnaryEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::binary, std::make_unique<Compile::BinaryEmitter>());
-    compiler_state.add_expr_emitter(Frontend::ExprTag::assign, std::make_unique<Compile::AssignEmitter>());
-
-    compiler_state.add_stmt_emitter(Frontend::StmtTag::var_decl, std::make_unique<Compile::VarsEmitter>());
-    compiler_state.add_stmt_emitter(Frontend::StmtTag::expr_stmt, std::make_unique<Compile::ExprStmtEmitter>());
-
-    auto program_opt = Compile::compile_all(compiler_state, ast_decls, source_string);
-
-    if (!program_opt) {
-        return 1;
-    }
-
-    Runtime::disassemble_program(program_opt.value());
+    return (driver.execute_program(arg_2) == Runtime::EvalStatus::ok) ? 0 : 1;
 }

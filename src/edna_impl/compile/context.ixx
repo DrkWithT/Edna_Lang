@@ -30,11 +30,12 @@ namespace Edna::Compile {
         std::uint16_t id;
         Domain domain;
         bool is_key_str; //? symbol is a name if false... otherwise, it's an interned string literal
-        bool is_foreign; //? denotes a non-local symbol, so dynamic lookup in environment objects is needed...
+        bool is_foreign; //? denotes a native / non-local symbol, so dynamic lookup in environment objects is needed...
     };
 
     export struct SymbolScope {
         std::flat_map<std::string, SymbolInfo> locations;
+        std::string title;
         int next_local_id;
         int next_const_id;
         bool is_of_func_body;
@@ -111,13 +112,15 @@ namespace Edna::Compile {
         bool within_access;
         bool within_assignable;
         bool within_call;
+        bool has_native_callee;
 
-        CompileContext(/* ObjectHeap preloaded_heap */)
-        : expr_emitters {}, stmt_emitters {}, heap {}, globals {}, scopes {}, chunks {}, current_name {}, function_body_scope_depth {0}, access_depth {0}, key_count {0}, error_count {0}, needs_prepass {false}, within_func_body {false}, within_access {false}, within_assignable {false}, within_call {false} {
+        CompileContext(std::size_t heap_objects_capacity)
+        : expr_emitters {}, stmt_emitters {}, heap {heap_objects_capacity}, globals {}, scopes {}, chunks {}, current_name {}, function_body_scope_depth {0}, access_depth {0}, key_count {0}, error_count {0}, needs_prepass {false}, within_func_body {false}, within_access {false}, within_assignable {false}, within_call {false}, has_native_callee {false} {
             //? 1. Establish top-level scoping & codegen data for correctness. Nested scopes will make nested mappings as such.
             scopes.emplace_back(SymbolScope {
                 .locations = {},
-                .next_local_id = 0,
+                .title = "(global-body)",
+                .next_local_id = 1,
                 .next_const_id = 0,
                 .is_of_func_body = true
             });
@@ -196,7 +199,7 @@ namespace Edna::Compile {
                 scopes.front().locations[symbol] = temp_locus;
 
                 return temp_locus;
-            } else if constexpr (std::is_same_v<item_type, std::unique_ptr<Runtime::ObjectBase<Runtime::Value>>>) {
+            } else if constexpr (std::is_base_of_v<item_type, std::unique_ptr<Runtime::ObjectBase<Runtime::Value>>>) {
                 // todo: register object base to heap & do globals.emplace of global Value with heap_id: xxx...
                 const int object_id = heap.store(std::move(item_arg));
 
@@ -216,7 +219,7 @@ namespace Edna::Compile {
                     .id = static_cast<std::uint16_t>(global_id),
                     .domain = Domain::global,
                     .is_key_str = false,
-                    .is_foreign = false
+                    .is_foreign = true
                 };
 
                 scopes.front().locations[symbol] = temp_locus;
@@ -319,7 +322,7 @@ namespace Edna::Compile {
 
     export [[nodiscard]] std::optional<Runtime::Program> compile_all(CompileContext& c, const Frontend::AllDecls& decls, const std::string& source) {
         {
-            FlagGuard<bool> top_level_prepass_guard {&c.needs_prepass, true};
+            const FlagGuard<bool> top_level_prepass_guard {&c.needs_prepass, true};
 
             for (auto decl_position = 0; const auto& decl : decls) {
                 decl_position++;
@@ -334,7 +337,7 @@ namespace Edna::Compile {
             }
         }
 
-        FlagGuard<bool> top_level_prepass_guard {&c.needs_prepass, false};
+        const FlagGuard<bool> top_level_prepass_guard {&c.needs_prepass, false};
 
         for (auto revisit_pos = 0; const auto& revisit_decl : decls) {
             revisit_pos++;
@@ -349,11 +352,12 @@ namespace Edna::Compile {
             return {};
         }
 
+        c.encode_instruction(Runtime::Opcode::ret);
+
         return Runtime::Program {
             .pre_heap = std::move(c.heap),
             .globals = std::move(c.globals),
-            .chunks = std::move(c.chunks),
-            .entry_chunk_id = 0
+            .chunks = std::move(c.chunks)
         };
     }
 }

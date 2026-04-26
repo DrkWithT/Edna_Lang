@@ -258,7 +258,7 @@ namespace Edna::Frontend {
                 }
             }
 
-            std::string_view lexeme = source.substr(tk_begin, m_pos - tk_begin);
+            const std::string_view lexeme = source.substr(tk_begin, m_pos - tk_begin);
 
             const auto deduced_token_tag = ([] (const std::flat_map<std::string_view, TokenTag>& special_lexicals, std::string_view current_lexeme) constexpr noexcept {
                 if (auto token_tag_it = special_lexicals.find(current_lexeme); token_tag_it != special_lexicals.end()) {
@@ -290,7 +290,7 @@ namespace Edna::Frontend {
                 }
             }
 
-            std::string_view lexeme = source.substr(tk_begin, m_pos - tk_begin);
+            const std::string_view lexeme = source.substr(tk_begin, m_pos - tk_begin);
 
             const auto deduced_token_tag = ([] (const std::flat_map<std::string_view, TokenTag>& special_lexicals, std::string_view current_lexeme) constexpr noexcept {
                 if (auto token_tag_it = special_lexicals.find(current_lexeme); token_tag_it != special_lexicals.end()) {

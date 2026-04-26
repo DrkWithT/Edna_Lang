@@ -36,21 +36,22 @@ namespace Edna::Compile {
 
             if (domain_tag == Domain::global) {
                 c.encode_instruction(Runtime::Opcode::push_global, domain_id);
+                c.has_native_callee = name_is_foreign;
             } else if (domain_tag == Domain::local) {
                 c.encode_instruction(Runtime::Opcode::get_local, domain_id);
-            } else if (atom_lexeme == c.current_name || domain_tag == Domain::self) {
-                c.encode_instruction(Runtime::Opcode::push_self);
+            } else if (atom_lexeme == c.current_name && c.within_call) {
+                c.encode_instruction(Runtime::Opcode::push_callee);
             } else {
-                std::string msg = std::format("Invalid type of name information, likely undeclared, found for '{}'", atom_lexeme);
+                const std::string msg = std::format("Invalid type of name information, likely undeclared, found for '{}' in scope of '{}'", atom_lexeme, c.scopes.back().title);
                 c.report_error(msg, atom_token.line);
 
                 return false;
             }
 
-            if (!c.within_assignable) {
-                //? Here, this check ensures that "non-assignable" values (basically anything not in a LHS) are deeply cloned for proper computation of RHS expressions. One case of the context.within_assignable flag being set is during evaluating assignments / variable initializers.
-                c.encode_instruction(Runtime::Opcode::deref);
-            }
+            // if (!c.within_assignable) {
+            //     //? Here, this check ensures that "non-assignable" values (basically anything not in a LHS) are deeply cloned for proper computation of RHS expressions. One case of the context.within_assignable flag being set is during evaluating assignments / variable initializers.
+            //     c.encode_instruction(Runtime::Opcode::deref);
+            // }
 
             return true;
         }
@@ -71,50 +72,51 @@ namespace Edna::Compile {
             std::string literal_lexeme = atom_token.as_string_from(source);
 
             switch (atom_token.tag) {
-            //? The "null" / boolean symbol will be mapped before actual bytecode compilation begins, so this should work.
-            case Frontend::TokenTag::keyword_self: c.encode_instruction(Runtime::Opcode::push_self); break;
-            case Frontend::TokenTag::literal_null: {
-                c.encode_instruction(Runtime::Opcode::push_null);
-            } break; case Frontend::TokenTag::literal_true: case Frontend::TokenTag::literal_false: {
-                c.encode_instruction(Runtime::Opcode::push_bool, static_cast<std::uint16_t>(atom_token.tag == Frontend::TokenTag::literal_true));
-            } break;
-            case Frontend::TokenTag::literal_int: {
-                auto integer_locator = c.lookup_constant_symbol(literal_lexeme)
-                    .or_else([&] () mutable {
-                        return c.record_constant_symbol(
-                            literal_lexeme,
-                            false,
-                            Runtime::Value::create_from_int(std::stoi(literal_lexeme))
-                        );
+                //? The "null" / boolean symbol will be mapped before actual bytecode compilation begins, so this should work.
+                // case Frontend::TokenTag::keyword_self: c.encode_instruction(Runtime::Opcode::push_self); break;
+                case Frontend::TokenTag::literal_null: {
+                    c.encode_instruction(Runtime::Opcode::push_null);
+                } break; case Frontend::TokenTag::literal_true: case Frontend::TokenTag::literal_false: {
+                    c.encode_instruction(Runtime::Opcode::push_bool, static_cast<std::uint16_t>(atom_token.tag == Frontend::TokenTag::literal_true));
+                } break;
+                case Frontend::TokenTag::literal_int: {
+                    auto integer_locator = c.lookup_constant_symbol(literal_lexeme)
+                        .or_else([&] () mutable {
+                            return c.record_constant_symbol(
+                                literal_lexeme,
+                                false,
+                                Runtime::Value::create_from_int(std::stoi(literal_lexeme))
+                            );
+                        });
+
+                    if (!integer_locator) {
+                        return false;
+                    }
+
+                    c.encode_instruction(Runtime::Opcode::push_const, integer_locator->id);
+                } break;
+                case Frontend::TokenTag::literal_real: {
+                    auto real_locator = c.lookup_constant_symbol(literal_lexeme).or_else([&] () mutable {
+                        return c.record_constant_symbol(literal_lexeme, false, Runtime::Value::create_from_double(std::stod(literal_lexeme)));
                     });
 
-                if (!integer_locator) {
-                    return false;
+                    if (!real_locator) {
+                        return false;
+                    }
+
+                    c.encode_instruction(Runtime::Opcode::push_const, real_locator->id);
+                } break;
+                case Frontend::TokenTag::literal_string: {
+                    c.report_error("String literals are not yet supported.", expr_line);
+                    return false; // todo
                 }
-
-                c.encode_instruction(Runtime::Opcode::push_const, integer_locator->id);
-            } break;
-            case Frontend::TokenTag::literal_real: {
-                auto real_locator = c.lookup_constant_symbol(literal_lexeme).or_else([&] () mutable {
-                    return c.record_constant_symbol(literal_lexeme, false, Runtime::Value::create_from_double(std::stod(literal_lexeme)));
-                });
-
-                if (!real_locator) {
-                    return false;
+                case Frontend::TokenTag::literal_esc_string: {
+                    c.report_error("Escaped string literals are not yet supported.", expr_line);
+                    return false; // todo
                 }
-
-                c.encode_instruction(Runtime::Opcode::push_const, real_locator->id);
-            } break;
-            case Frontend::TokenTag::literal_string: {
-                c.report_error("String literals are not yet supported.", expr_line);
-                return false; // todo
-            }
-            case Frontend::TokenTag::literal_esc_string: {
-                c.report_error("Escaped string literals are not yet supported.", expr_line);
-                return false; // todo
-            }
-            case Frontend::TokenTag::identifier: default:
-                return emit_name(c, atom_token, source);
+                case Frontend::TokenTag::identifier:
+                    return emit_name(c, atom_token, source);
+                default: break;
             }
 
             return true;
@@ -215,19 +217,21 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr; // todo: use line info for errors
             const auto& [block_stmts] = std::get<Frontend::Block>(expr_data);
 
-            FlagGuard<bool> block_is_body_guard {&c.within_func_body, static_cast<int>(c.scopes.size()) == c.function_body_scope_depth};
+            const FlagGuard<bool> block_is_body_guard {&c.within_func_body, static_cast<int>(c.scopes.size()) == c.function_body_scope_depth};
             const bool is_lexically_scoped_block = c.scopes.size() > c.function_body_scope_depth && !c.within_assignable;
 
             if (is_lexically_scoped_block) {
                 c.scopes.emplace_back(SymbolScope {
                     .locations = c.scopes.back().locations,
+                    .title = "(anonymous-block-expr)",
                     .next_local_id = c.scopes.back().next_local_id,
                     .next_const_id = c.scopes.back().next_const_id,
                 });
+                c.function_body_scope_depth++;
             }
 
             {
-                FlagGuard<bool> block_inside_prepass_guard {&c.needs_prepass, false};
+                const FlagGuard<bool> block_inside_prepass_guard {&c.needs_prepass, true};
 
                 for (const auto& prepass_stmt : block_stmts) {
                     if (!c.emit_stmt(*prepass_stmt, source)) {
@@ -238,8 +242,8 @@ namespace Edna::Compile {
             }
 
             {
-                FlagGuard<bool> block_inside_prepass_guard {&c.needs_prepass, true};
-                
+                const FlagGuard<bool> block_inside_prepass_guard {&c.needs_prepass, false};
+
                 for (const auto& prepass_stmt : block_stmts) {
                     if (!c.emit_stmt(*prepass_stmt, source)) {
                         c.scopes.pop_back();
@@ -249,6 +253,7 @@ namespace Edna::Compile {
             }
 
             if (is_lexically_scoped_block) {
+                c.function_body_scope_depth--;
                 c.scopes.pop_back();
             }
 
@@ -291,8 +296,8 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr; // todo: use line info for errors
             const auto& [fun_params, fun_body] = std::get<Frontend::Lambda>(expr_data);
 
-            FlagGuard<bool> lambda_in_callable_guard {&c.within_func_body, true};
-            FlagGuard<int> lambda_body_scope_depth_guard {&c.function_body_scope_depth, static_cast<int>(c.scopes.size())};
+            const FlagGuard<bool> lambda_in_callable_guard {&c.within_func_body, true};
+            const FlagGuard<int> lambda_body_scope_depth_guard {&c.function_body_scope_depth, static_cast<int>(c.scopes.size())};
 
             c.chunks.emplace_back(Runtime::Chunk {
                 .consts = {},
@@ -300,9 +305,11 @@ namespace Edna::Compile {
             });
             c.scopes.emplace_back(SymbolScope {
                 .locations = {},
-                .next_local_id = 0,
+                .title = c.current_name,
+                .next_local_id = 1,
                 .next_const_id = 0
             });
+            c.function_body_scope_depth++;
 
             c.scopes.back().locations[c.current_name] = SymbolInfo {
                 .id = 0,
@@ -312,7 +319,7 @@ namespace Edna::Compile {
             };
 
             for (const auto& [param_token, param_rest] : fun_params) {
-                std::string temp_param_name {param_token.as_string_from(source)};
+                const std::string temp_param_name {param_token.as_string_from(source)};
 
                 c.record_local_symbol(temp_param_name);
             }
@@ -324,6 +331,7 @@ namespace Edna::Compile {
             c.encode_instruction(Runtime::Opcode::ret); //? implicitly return upon end of each block... MAYBE blocks will create their own call-frame-like record, allowing for blocks to be used like mini-functions that capture their parent's names?
 
             c.scopes.pop_back();
+            c.function_body_scope_depth--;
             c.current_name.clear();
 
             //? Here, construct a callable on the heap, preloaded, before recording the name as a constant... finally generating a push of the lambda as a temporary.
@@ -365,8 +373,8 @@ namespace Edna::Compile {
             int saved_key_count = 0;
 
             {
-                FlagGuard<bool> access_guard {&c.within_access, true};
-                FlagGuard<int> key_count_guard {&c.key_count, c.key_count};
+                const FlagGuard<bool> access_guard {&c.within_access, true};
+                const FlagGuard<int> key_count_guard {&c.key_count, c.key_count};
                 
                 c.access_depth++;
                 
@@ -385,11 +393,12 @@ namespace Edna::Compile {
                 saved_key_count = key_count_guard.current();
                 
                 if (c.access_depth == 0 && !c.within_assignable) {
+                    //? GET_PROP derefs its result value implicitly.
                     c.encode_instruction(Runtime::Opcode::get_prop, key_count_guard.current());
 
-                    if (!c.within_assignable) {
-                        c.encode_instruction(Runtime::Opcode::deref);
-                    }
+                    // if (!c.within_assignable) {
+                    //     c.encode_instruction(Runtime::Opcode::deref);
+                    // }
                 }
             }
 
@@ -410,11 +419,11 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr;
             const auto& [call_args, call_fun] = std::get<Frontend::Call>(expr_data);
 
-            FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
             //? Emit callee code with optionally defaulted null for 'self'.
             {
-                FlagGuard<bool> call_guard {&c.within_call, true};
+                const FlagGuard<bool> call_guard {&c.within_call, true};
 
                 //? Emit placeholder selfArg for non-method calls, placing at least 1 value below the callee reference.
                 if (call_fun->tag != Frontend::ExprTag::lhs) {
@@ -422,17 +431,24 @@ namespace Edna::Compile {
                 }
 
                 if (!c.emit_expr(*call_fun, source)) {
+                    c.has_native_callee = false;
                     return false;
                 }
             }
 
             for (const auto& arg_expr : call_args) {
                 if (!c.emit_expr(*arg_expr, source)) {
+                    c.has_native_callee = false;
                     return false;
                 }
             }
 
-            c.encode_instruction(Runtime::Opcode::call_fun, static_cast<std::uint16_t>(call_args.size()));
+            c.encode_instruction(
+                (c.has_native_callee) ? Runtime::Opcode::call_native : Runtime::Opcode::call_fun,
+                static_cast<std::uint16_t>(call_args.size())
+            );
+
+            c.has_native_callee = false;
 
             return true;
         }
@@ -448,10 +464,10 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr;
             const auto& [unary_inner, unary_op] = std::get<Frontend::Unary>(expr_data);
 
-            FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
             {
-                FlagGuard<bool> call_guard {&c.within_call, false};
+                const FlagGuard<bool> call_guard {&c.within_call, false};
 
                 auto op_info = ([] (Frontend::AstOp op) constexpr noexcept -> std::optional<Runtime::Opcode> {
                     switch (op) {
@@ -484,13 +500,13 @@ namespace Edna::Compile {
         };
 
         [[nodiscard]] bool emit_logical_and(CompileContext& c, const Frontend::ExprNode& lhs, const Frontend::ExprNode& rhs, const std::string& source) {
-            FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
             return false; // todo: implement!
         }
 
         [[nodiscard]] bool emit_logical_or(CompileContext& c, const Frontend::ExprNode& lhs, const Frontend::ExprNode& rhs, const std::string& source) {
-            FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
             return false; // todo: implement!
         }
@@ -504,10 +520,10 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr;
             const auto& [binary_lhs, binary_rhs, binary_op] = std::get<Frontend::Binary>(expr_data);
 
-            FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
             {
-                FlagGuard<bool> call_guard {&c.within_call, false};
+                const FlagGuard<bool> call_guard {&c.within_call, false};
 
                 if (binary_op == Frontend::AstOp::ast_and) {
                     return emit_logical_and(c, *binary_lhs, *binary_rhs, source);
@@ -595,20 +611,35 @@ namespace Edna::Compile {
             const auto& [dest_expr, source_expr] = std::get<Frontend::Assign>(expr_data);
 
             {
-                FlagGuard<bool> call_guard {&c.within_call, false};
-                FlagGuard<bool> assign_guard {&c.within_assignable, true};
-
-                if (!c.emit_expr(*dest_expr, source)) {
-                    return false;
-                }
-
-                if (!c.emit_expr(*source_expr, source)) {
-                    return false;
-                }
+                const FlagGuard<bool> call_guard {&c.within_call, false};
+                const FlagGuard<bool> assign_guard {&c.within_assignable, true};
 
                 if (dest_expr->tag == Frontend::ExprTag::atom) {
-                    c.encode_instruction(Runtime::Opcode::set_local);
+                    const auto& [dest_name_token] = std::get<Frontend::Atom>(dest_expr->data);
+
+                    if (dest_name_token.tag != Frontend::TokenTag::identifier) {
+                        c.report_error("Destination of to-atom assignment must target a name.", dest_name_token.line);
+                        return false;
+                    }
+
+                    if (!c.emit_expr(*source_expr, source)) {
+                        return false;
+                    }
+
+                    if (auto dest_location = c.lookup_local_symbol(dest_name_token.as_string_from(source)); dest_location) {
+                        c.encode_instruction(Runtime::Opcode::set_local, dest_location->id);
+                    } else {
+                        return false;
+                    }
                 } else if (dest_expr->tag == Frontend::ExprTag::lhs) {
+                    if (!c.emit_expr(*dest_expr, source)) {
+                        return false;
+                    }
+
+                    if (!c.emit_expr(*source_expr, source)) {
+                        return false;
+                    }
+
                     c.encode_instruction(Runtime::Opcode::set_prop, c.key_count);
                 } else {
                     c.report_error("Found invalid assignment LHS- only identifier atoms or key / property accesses are valid.", expr_line);

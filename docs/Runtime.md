@@ -27,7 +27,7 @@
 #### VM:
  - Stack based with base offsets
  - Pre-allocated heap and stack, sized by user-passed limits.
- - Call frames contain callee stack BP with caller BP, IP, and Heap ID.
+ - Call frame _semantics_ contain callee stack BP, BASE_IP, and BASE-CVP with caller BP, IP. In the implementation, the native stack _itself_ is used in the `call_fun` opcode handler to save caller state.
 
 #### GC:
  - Mark-and-Sweep collection:
@@ -54,7 +54,8 @@
  - MAKE_OBJECT: Args: `<pair-count>`, Stack: `<object> (<key> <value>)*`
    - NOTE: add stubs of constructor functions that attach self.prototype, and self.proto...
  - DEREF: resolves a local "ref" to an actual Value.
- - NEGATE: Stack: `<temp>` to `<temp-negated>`
+ - NEGATE_BOOL: Stack: `<temp>` to `<temp-negated>`
+ - NEGATE_NUM: Stack: `<temp>` to `<temp-negated>`
  - MOD: ...
  - MUL: ...
  - DIV: ...

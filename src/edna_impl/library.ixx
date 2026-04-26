@@ -5,5 +5,6 @@ export import edna.frontend.parser;
 export import edna.compile.context;
 export import edna.compile.expr_emit;
 export import edna.compile.stmt_emit;
-export import edna.runtime.context;
-export import edna.runtime.bytecode;
+export import edna.runtime.callables;
+export import edna.runtime.handlers1;
+export import edna.runtime.vm;
