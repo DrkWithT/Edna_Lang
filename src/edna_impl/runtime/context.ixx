@@ -21,9 +21,9 @@ namespace Edna::Runtime {
         std::uint16_t depth;    //? Call depth (hardcoded for now)
         EvalStatus status;      //? VM dispatch status
 
-        EvalContext(Program& program, int local_capacity)
+        EvalContext(Program& program, std::size_t local_capacity)
         : heap (std::move(program.pre_heap)), globals (std::move(program.globals)), stack {}, ip {program.chunks.back().code.data()}, cvp {program.chunks.back().consts.data()}, bp {1}, sp {1}, depth {1}, status {EvalStatus::pending} {
-            stack = std::make_unique<Value[]>(static_cast<std::size_t>(local_capacity));
+            stack = std::make_unique<Value[]>(local_capacity);
 
             //? 1. 2 nulls should be pushed for slots 0 and 1 since the implicit main & its null `selfArg` are not explicitly usable!
             stack[0] = Value::create_from_dud();

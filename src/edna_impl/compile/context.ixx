@@ -114,8 +114,8 @@ namespace Edna::Compile {
         bool within_call;
         bool has_native_callee;
 
-        CompileContext(/* ObjectHeap preloaded_heap */)
-        : expr_emitters {}, stmt_emitters {}, heap {}, globals {}, scopes {}, chunks {}, current_name {}, function_body_scope_depth {0}, access_depth {0}, key_count {0}, error_count {0}, needs_prepass {false}, within_func_body {false}, within_access {false}, within_assignable {false}, within_call {false}, has_native_callee {false} {
+        CompileContext(std::size_t heap_objects_capacity)
+        : expr_emitters {}, stmt_emitters {}, heap {heap_objects_capacity}, globals {}, scopes {}, chunks {}, current_name {}, function_body_scope_depth {0}, access_depth {0}, key_count {0}, error_count {0}, needs_prepass {false}, within_func_body {false}, within_access {false}, within_assignable {false}, within_call {false}, has_native_callee {false} {
             //? 1. Establish top-level scoping & codegen data for correctness. Nested scopes will make nested mappings as such.
             scopes.emplace_back(SymbolScope {
                 .locations = {},

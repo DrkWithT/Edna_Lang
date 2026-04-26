@@ -58,7 +58,7 @@ namespace Edna::Runtime {
             "jump_else",
             "call_ctor",
             "call_fun",
-            "call_native"
+            "call_native",
             "ret"
         };
 
