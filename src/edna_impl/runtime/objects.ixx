@@ -55,6 +55,7 @@ namespace Edna::Runtime {
         virtual std::string as_str(void* ctx) const = 0;
 
         virtual const void* get_code_data() const noexcept = 0;
+        virtual void* get_code_data() noexcept = 0;
         virtual native_routine_type get_native_fn_ptr() const noexcept = 0;
     };
 
@@ -111,6 +112,10 @@ namespace Edna::Runtime {
 
         constexpr bool needs_gc() const noexcept {
             return m_overhead >= m_ripeness_threshold;
+        }
+
+        std::vector<std::unique_ptr<object_base_value>>& cells() noexcept {
+            return m_cells;
         }
 
         //! WARNING: object_p is meant to be a raw owning pointer (that's passed from the tail call optimized VM which cannot have non-trivially destructible things in opcode handlers) to some object. This overload exists to quickly manage the raw pointer in the "heap".

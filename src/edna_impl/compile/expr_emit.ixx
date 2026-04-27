@@ -16,10 +16,6 @@ import edna.compile.context;
 import edna.runtime.callables;
 
 namespace Edna::Compile {
-    // TODO: 1: make expr emitters
-    // TODO: 2: make stmt emitters
-    // TODO: 3: test VM on fibonacci
-
     export class AtomEmitter : public ExprEmitterBase {
     private:
         [[nodiscard]] bool emit_name(CompileContext& c, const Frontend::Token& atom_token, const std::string& source) {
@@ -150,7 +146,9 @@ namespace Edna::Compile {
             //? 2: Emit JUMP_ELSE, record code position...
             const std::uint16_t skip_jump_ip = c.chunks.back().code.size();
 
-            c.encode_instruction(Runtime::Opcode::jump_else, 0); //? dud jump
+            if (!c.needs_prepass) {
+                c.encode_instruction(Runtime::Opcode::jump_else, 0); //? dud jump
+            }
             // if (!c.within_assignable) {
             //     c.encode_instruction(Runtime::Opcode::pop, 1); //? the check's boolean is already used, so yeet it
             // }
@@ -163,7 +161,9 @@ namespace Edna::Compile {
             //? 4.1: Emit JUMP to skip out of the cond. Only 1 case / else is run.
             const std::uint16_t exit_jump_ip = c.chunks.back().code.size();
 
-            c.encode_instruction(Runtime::Opcode::jump, 0); //? dud jump
+            if (!c.needs_prepass) {
+                c.encode_instruction(Runtime::Opcode::jump, 0); //? dud jump
+            }
 
             //? 4.2: Emit NOP to mark the end of the result code- It's where the current JUMP_ELSE will go to.
             const std::uint16_t end_case_body_ip = c.chunks.back().code.size();

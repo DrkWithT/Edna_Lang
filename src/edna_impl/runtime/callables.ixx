@@ -75,7 +75,6 @@ namespace Edna::Runtime {
         properties m_properties;
         items m_indexables;
 
-        std::size_t m_code_size;
         std::unique_ptr<Chunk> m_chunk; // TODO: make a NativeCallable type below this entire class.
 
         std::uint8_t m_arity;
@@ -83,7 +82,7 @@ namespace Edna::Runtime {
 
     public:
         explicit Callable(Chunk chunk, std::uint8_t expected_arity, bool is_ctor) noexcept
-        : m_code_size {chunk.code.size()}, m_chunk (std::make_unique<Chunk>(std::move(chunk))), m_properties {}, m_indexables {}, m_arity {expected_arity}, m_is_ctor {is_ctor} {}
+        : m_chunk (std::make_unique<Chunk>(std::move(chunk))), m_properties {}, m_indexables {}, m_arity {expected_arity}, m_is_ctor {is_ctor} {}
 
         [[nodiscard]] bool test(void* ctx) const noexcept override {
             return true;
@@ -140,7 +139,7 @@ namespace Edna::Runtime {
                 constant_id++;
             }
 
-            for (std::size_t instruction_pos = 0; instruction_pos < m_code_size; instruction_pos++) {
+            for (std::size_t instruction_pos = 0; instruction_pos < m_chunk->code.size(); instruction_pos++) {
                 const auto [opcode, arg] = m_chunk->code.at(instruction_pos);
 
                 sout << std::format(
@@ -157,6 +156,10 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] const void* get_code_data() const noexcept override {
+            return m_chunk.get();
+        }
+
+        [[nodiscard]] void* get_code_data() noexcept override {
             return m_chunk.get();
         }
 
@@ -220,6 +223,10 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] const void* get_code_data() const noexcept override {
+            return nullptr;
+        }
+
+        [[nodiscard]] void* get_code_data() noexcept override {
             return nullptr;
         }
 
