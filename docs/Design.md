@@ -65,7 +65,7 @@ print(printingPair.display())
 
 #### Roadmap
  1. Add native print function support. **OK**
- 2. Refactor bytecode compiler & runtime into classes.
+ 2. Refactor bytecode compiler & runtime into classes. **OK**
  3. Add peephole optimization passes for bytecode:
     - Place super instructions.
     - Remove non-trailing NOPs.

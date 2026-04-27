@@ -8,7 +8,7 @@
 
 import edna_impl;
 
-constexpr std::string_view edna_ascii_art = " ___        _            \n"
+constexpr std::string_view edna_ascii_art = " ___       _            \n"
                                             "(  _ \\    ( )            \n"
                                             "| (_(_)  _| | ___    _ _ \n"
                                             "|  _)_ / _  |  _  \\/ _  )\n"
@@ -30,6 +30,7 @@ namespace Edna {
     private:
         Frontend::Lexer m_lexer;
         Compile::CompileContext m_compiler;
+        Compile::Optimizer m_optimizer;
         Configs m_info;
         bool m_allow_bytecode_dump;
 
@@ -70,7 +71,7 @@ namespace Edna {
 
     public:
         constexpr Driver(Configs cfg)
-        : m_lexer {}, m_compiler {cfg.heap_populate_capacity}, m_info {cfg} {}
+        : m_lexer {}, m_compiler {cfg.heap_populate_capacity}, m_optimizer {}, m_info {cfg} {}
 
         [[nodiscard]] constexpr const Configs& get_info() const noexcept {
             return m_info;
@@ -84,14 +85,28 @@ namespace Edna {
             m_lexer.add_edna_lexical(lexeme, tag);
         }
 
-        template <typename Emitter> requires (std::is_base_of_v<Compile::ExprEmitterBase, Emitter>)
+        template <typename Emitter> requires (
+            std::is_base_of_v<Compile::ExprEmitterBase, Emitter>
+            && std::is_default_constructible_v<Emitter>
+        )
         void add_expr_emitter(Frontend::ExprTag tag) noexcept {
             m_compiler.add_expr_emitter(tag, std::make_unique<Emitter>());
         }
 
-        template <typename Emitter> requires (std::is_base_of_v<Compile::StmtEmitterBase, Emitter>)
+        template <typename Emitter> requires (
+            std::is_base_of_v<Compile::StmtEmitterBase, Emitter>
+            && std::is_default_constructible_v<Emitter>
+        )
         void add_stmt_emitter(Frontend::StmtTag tag) noexcept {
             m_compiler.add_stmt_emitter(tag, std::make_unique<Emitter>());
+        }
+
+        template <typename OptPass> requires (
+            std::is_base_of_v<Compile::PassBase, OptPass>
+            && std::is_default_constructible_v<OptPass>
+        )
+        void add_optimizer_pass(Compile::PassTag tag) noexcept {
+            m_optimizer.add_pass(tag, std::make_unique<OptPass>());
         }
 
         void add_native_object(std::string name, std::unique_ptr<Runtime::ObjectBase<Runtime::Value>> object) noexcept {
@@ -103,6 +118,20 @@ namespace Edna {
 
             if (!program_option) {
                 return Runtime::EvalStatus::build_failure;
+            }
+
+            for (auto& chunk : program_option->chunks) {
+                m_optimizer.apply(chunk.code);
+            }
+
+            for (auto& object_ptr : program_option->pre_heap.cells()) {
+                if (!object_ptr) {
+                    break;
+                }
+
+                if (auto object_chunk_ptr = reinterpret_cast<Runtime::Chunk*>(object_ptr->get_code_data()); object_chunk_ptr != nullptr) {
+                    m_optimizer.apply(object_chunk_ptr->code);
+                }
             }
 
             if (m_allow_bytecode_dump) {
@@ -130,9 +159,7 @@ namespace Edna {
     };
 }
 
-constexpr int edna_max_local_slots = 4096;
 
-//? NOTE: `opaque_context` MUST point to a mutable `EvalContext` object. This allows native functions to alter any runtime state as needed.
 [[nodiscard]] Edna::Runtime::EvalStatus native_print(void* opaque_context, std::uint8_t argc) {
     auto vm_context = reinterpret_cast<Edna::Runtime::EvalContext*>(opaque_context);
     const std::uint32_t callee_bp = vm_context->sp - argc;
@@ -242,6 +269,9 @@ int main(int argc, char* argv[]) {
 
     driver.add_stmt_emitter<Compile::VarsEmitter>(Frontend::StmtTag::vars);
     driver.add_stmt_emitter<Compile::ExprStmtEmitter>(Frontend::StmtTag::expr_stmt);
+
+    driver.add_optimizer_pass<Compile::CondenseOps>(Compile::PassTag::condense_ops);
+    driver.add_optimizer_pass<Compile::TrimNOPs>(Compile::PassTag::trim_nops);
 
     driver.add_native_object("print", std::make_unique<Runtime::NativeCallable>(&native_print));
 

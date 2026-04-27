@@ -15,6 +15,8 @@ target_sources(
     src/edna_impl/compile/context.ixx
     src/edna_impl/compile/expr_emit.ixx
     src/edna_impl/compile/stmt_emit.ixx
+    src/edna_impl/compile/optimizer.ixx
+    src/edna_impl/compile/passes.ixx
     src/edna_impl/runtime/objects.ixx
     src/edna_impl/runtime/value.ixx
     src/edna_impl/runtime/bytecode.ixx
