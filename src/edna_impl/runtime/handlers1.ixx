@@ -179,15 +179,13 @@ namespace Edna::Runtime {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() * rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                    case ValueScalarHint::boolean: case ValueScalarHint::integer:
+                    case ValueScalarHint::integer:
                         stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
                         break;
                     default:
                         stack[c.sp] = Value::create_as_nan();
                         break;
                 }
-            } else if ((lhs_hint == ValueScalarHint::boolean && rhs_hint == ValueScalarHint::integer) || (lhs_hint == ValueScalarHint::integer || rhs_hint == ValueScalarHint::boolean)) {
-                stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
             }
@@ -238,15 +236,13 @@ namespace Edna::Runtime {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() + rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                    case ValueScalarHint::boolean: case ValueScalarHint::integer:
+                    case ValueScalarHint::integer:
                         stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
                         break;
                     default:
                         stack[c.sp] = Value::create_as_nan();
                         break;
                 }
-            } else if ((lhs_hint == ValueScalarHint::boolean && rhs_hint == ValueScalarHint::integer) || (lhs_hint == ValueScalarHint::integer && rhs_hint == ValueScalarHint::boolean)) {
-                stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
             }
@@ -264,15 +260,13 @@ namespace Edna::Runtime {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() - rhs.as_double());
             } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
                 switch (lhs_hint) {
-                    case ValueScalarHint::boolean: case ValueScalarHint::integer:
+                    case ValueScalarHint::integer:
                         stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
                         break;
                     default:
                         stack[c.sp] = Value::create_as_nan();
                         break;
                 }
-            } else if ((lhs_hint == ValueScalarHint::boolean && rhs_hint == ValueScalarHint::integer) || (lhs_hint == ValueScalarHint::integer && rhs_hint == ValueScalarHint::boolean)) {
-                stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
             }
@@ -572,6 +566,55 @@ namespace Edna::Runtime {
             return c.status;
         }
 
+        // ! CAVEAT: lower arg byte is always the local ID & higher arg byte is always the constant ID. However, the encoding only works for IDs 0-255 !
+        [[nodiscard]] static constexpr EvalStatus op_padd_lk(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+            c.sp++;
+
+            if (const Value local = stack[c.bp + static_cast<std::uint16_t>(ip->arg & 0xff)], konst = cvp[static_cast<std::uint16_t>(ip->arg & 0xff00) >> 8]; !local.is_nan() && !konst.is_nan()) {
+                stack[c.sp] = Value::create_from_double(local.as_double() + konst.as_double());
+            } else if (const auto lhs_hint = local.hint(), rhs_hint = konst.hint(); lhs_hint == rhs_hint) {
+                switch (lhs_hint) {
+                    case ValueScalarHint::integer:
+                        stack[c.sp] = Value::create_from_int(local.scalar() + konst.scalar());
+                        break;
+                    default:
+                        stack[c.sp] = Value::create_as_nan();
+                        break;
+                }
+            } else {
+                stack[c.sp] = Value::create_as_nan();
+            }
+
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
+        }
+
+        [[nodiscard]] static constexpr EvalStatus op_psub_lk(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+            c.sp++;
+
+            if (const Value local = stack[c.bp + static_cast<std::uint16_t>(ip->arg & 0xff)], konst = cvp[static_cast<std::uint16_t>(ip->arg & 0xff00) >> 8]; !local.is_nan() && !konst.is_nan()) {
+                stack[c.sp] = Value::create_from_double(local.as_double() - konst.as_double());
+            } else if (const auto lhs_hint = local.hint(), rhs_hint = konst.hint(); lhs_hint == rhs_hint) {
+                switch (lhs_hint) {
+                    case ValueScalarHint::integer:
+                        stack[c.sp] = Value::create_from_int(local.scalar() - konst.scalar());
+                        break;
+                    default:
+                        stack[c.sp] = Value::create_as_nan();
+                        break;
+                }
+            } else {
+                stack[c.sp] = Value::create_as_nan();
+            }
+
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
+        }
+
         //* Handler dispatch table:
         static constexpr std::array<handler_type, static_cast<std::size_t>(Opcode::last)> handlers_v1_funcs = {
             &op_nop,
@@ -586,7 +629,8 @@ namespace Edna::Runtime {
             &op_mod, op_mul, &op_div, op_add, &op_sub,
             &op_compare_eq, &op_compare_ne, &op_compare_lt, &op_compare_lte, &op_compare_gt, &op_compare_gte, &op_test,
             &op_jump, &op_jump_back, &op_jump_if, &op_jump_else,
-            &op_call_ctor, &op_call_fun, &op_call_native, &op_ret
+            &op_call_ctor, &op_call_fun, &op_call_native, &op_ret,
+            &op_padd_lk, &op_psub_lk,
         };
 
         static constexpr EvalStatus dispatch(EvalContext& context, const Instruction* ip, const Value* constants, Value* stack) {

@@ -14,6 +14,7 @@ export import edna.runtime.value;
 namespace Edna::Runtime {
     export enum class Opcode : std::uint8_t {
         nop,
+        // * BEGIN STACK OPCODES
         dup,
         push_null,
         push_bool,
@@ -26,9 +27,11 @@ namespace Edna::Runtime {
         get_prop,
         set_prop,
         pop,
+        // * BEGIN OBJECT OPCODES:
         make_array,
         make_object,
         deref,
+        // * BEGIN MATH / COMPARISON OPCODES:
         negate_bool,
         negate_num,
         mod,
@@ -43,6 +46,7 @@ namespace Edna::Runtime {
         compare_gt,
         compare_gte,
         test,
+        // * BEGIN CONTROL FLOW OPCODES:
         jump,
         jump_back,
         jump_if,
@@ -53,6 +57,9 @@ namespace Edna::Runtime {
         ret,
         // throw_obj,
         // catch_obj
+        // * BEGIN SUPER OPCODES:
+        padd_lk,
+        psub_lk,
         last
     };
 
@@ -110,7 +117,9 @@ namespace Edna::Runtime {
             "call_ctor",
             "call_fun",
             "call_native",
-            "ret"
+            "ret",
+            "padd_lk",
+            "psub_lk"
         };
 
         static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constants_names = {

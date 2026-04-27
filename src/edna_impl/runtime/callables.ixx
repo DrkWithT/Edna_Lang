@@ -59,7 +59,9 @@ namespace Edna::Runtime {
             "call_ctor",
             "call_fun",
             "call_native",
-            "ret"
+            "ret",
+            "padd_lk",
+            "psub_lk"
         };
 
         static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constant_tags = {
