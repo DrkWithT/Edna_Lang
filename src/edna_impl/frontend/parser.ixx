@@ -159,7 +159,7 @@ namespace Edna::Frontend {
         [[nodiscard]] ExprPtr parse_atom(Lexer& lexer, std::string_view source) {
             const auto current_tag = m_current.tag;
 
-            ParseGuard guard {m_infos, m_current.begin, std::to_underlying(ExprTag::atom), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, m_current.begin, std::to_underlying(ExprTag::atom), ExprInfoOpt {}};
 
             switch (current_tag) {
             case TokenTag::literal_null: case TokenTag::keyword_self:
@@ -200,7 +200,7 @@ namespace Edna::Frontend {
             const auto array_lexeme_begin = m_current.begin;
             const auto array_line = m_current.line;
 
-            ParseGuard guard {m_infos, array_lexeme_begin, std::to_underlying(ExprTag::array), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, array_lexeme_begin, std::to_underlying(ExprTag::array), ExprInfoOpt {}};
 
             consume(lexer, source); // eat pre-checked '[' since this is only called by parse_primary()
 
@@ -234,7 +234,7 @@ namespace Edna::Frontend {
             const auto cond_case_lexeme_begin = m_current.begin;
             const auto cond_case_line = m_current.line;
 
-            ParseGuard guard {m_infos, cond_case_lexeme_begin, std::to_underlying(ExprTag::cond), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, cond_case_lexeme_begin, std::to_underlying(ExprTag::cond), ExprInfoOpt {}};
 
             consume(lexer, source, "Expected 'case' or 'else' here.", TokenTag::keyword_case, TokenTag::keyword_else);
 
@@ -260,7 +260,7 @@ namespace Edna::Frontend {
             const auto cond_lexeme_begin = m_current.begin;
             const auto cond_line = m_current.line;
 
-            ParseGuard guard {m_infos, cond_lexeme_begin, std::to_underlying(ExprTag::cond), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, cond_lexeme_begin, std::to_underlying(ExprTag::cond), ExprInfoOpt {}};
 
             consume(lexer, source, "Expected 'cond' here.", TokenTag::keyword_cond);
 
@@ -297,7 +297,7 @@ namespace Edna::Frontend {
             const auto block_lexeme_begin = m_current.begin;
             const auto block_line = m_current.line;
 
-            ParseGuard guard {m_infos, block_lexeme_begin, std::to_underlying(ExprTag::block), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, block_lexeme_begin, std::to_underlying(ExprTag::block), ExprInfoOpt {}};
 
             consume(lexer, source, "Expected opening '{' for block body.", TokenTag::left_brace);
             
@@ -330,7 +330,7 @@ namespace Edna::Frontend {
             const auto lambda_param_line = m_current.line;
             auto lambda_param_is_pack = false;
 
-            ParseGuard guard {m_infos, lambda_param_lexeme_begin, std::to_underlying(ExprTag::cond), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, lambda_param_lexeme_begin, std::to_underlying(ExprTag::cond), ExprInfoOpt {}};
 
             if (match_token(TokenTag::ellipses)) {
                 lambda_param_is_pack = true;
@@ -349,7 +349,7 @@ namespace Edna::Frontend {
             const auto lambda_lexeme_begin = m_current.begin;
             const auto lambda_line = m_current.line;
 
-            ParseGuard guard {m_infos, lambda_lexeme_begin, std::to_underlying(ExprTag::lambda), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, lambda_lexeme_begin, std::to_underlying(ExprTag::lambda), ExprInfoOpt {}};
 
             std::vector<Param> lambda_params;
 
@@ -389,7 +389,7 @@ namespace Edna::Frontend {
             const auto lhs_lexeme_begin = m_current.begin;
             const auto lhs_line = m_current.line;
 
-            ParseGuard guard {m_infos, lhs_lexeme_begin, std::to_underlying(ExprTag::lhs), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, lhs_lexeme_begin, std::to_underlying(ExprTag::lhs), ExprInfoOpt {}};
 
             ExprPtr lhs = parse_atom(lexer, source);
 
@@ -424,7 +424,7 @@ namespace Edna::Frontend {
             const auto call_lexeme_begin = m_current.begin;
             const auto call_line = m_current.line;
 
-            ParseGuard guard {m_infos, call_lexeme_begin, std::to_underlying(ExprTag::call), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, call_lexeme_begin, std::to_underlying(ExprTag::call), ExprInfoOpt {}};
 
             ExprPtr callee_expr = parse_lhs(lexer, source);
 
@@ -465,7 +465,7 @@ namespace Edna::Frontend {
             const auto unary_lexeme_begin = m_current.begin;
             const auto unary_line = m_current.line;
 
-            ParseGuard guard {m_infos, unary_lexeme_begin, std::to_underlying(ExprTag::unary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, unary_lexeme_begin, std::to_underlying(ExprTag::unary), ExprInfoOpt {}};
 
             const auto unary_op_tag = ([] (TokenTag tag) noexcept {
                 switch (tag) {
@@ -497,7 +497,7 @@ namespace Edna::Frontend {
             const auto factor_lexeme_begin = m_current.begin;
             const auto factor_line = m_current.line;
 
-            ParseGuard guard {m_infos, factor_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, factor_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
             ExprPtr lhs = parse_unary(lexer, source);
 
             while (!at_eof()) {
@@ -535,7 +535,7 @@ namespace Edna::Frontend {
             const auto term_lexeme_begin = m_current.begin;
             const auto term_line = m_current.line;
 
-            ParseGuard guard {m_infos, term_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, term_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
             ExprPtr lhs = parse_factor(lexer, source);
 
             while (!at_eof()) {
@@ -572,7 +572,7 @@ namespace Edna::Frontend {
             const auto equality_lexeme_begin = m_current.begin;
             const auto equality_line = m_current.line;
 
-            ParseGuard guard {m_infos, equality_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, equality_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
             ExprPtr lhs = parse_term(lexer, source);
 
             while (!at_eof()) {
@@ -609,7 +609,7 @@ namespace Edna::Frontend {
             const auto compare_lexeme_begin = m_current.begin;
             const auto compare_line = m_current.line;
 
-            ParseGuard guard {m_infos, compare_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, compare_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
             ExprPtr lhs = parse_equality(lexer, source);
 
             while (!at_eof()) {
@@ -648,7 +648,7 @@ namespace Edna::Frontend {
             const auto logical_and_lexeme_begin = m_current.begin;
             const auto logical_and_line = m_current.line;
 
-            ParseGuard guard {m_infos, logical_and_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, logical_and_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
             ExprPtr lhs = parse_compare(lexer, source);
 
             while (!at_eof()) {
@@ -678,7 +678,7 @@ namespace Edna::Frontend {
             const auto logical_or_lexeme_begin = m_current.begin;
             const auto logical_or_line = m_current.line;
 
-            ParseGuard guard {m_infos, logical_or_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, logical_or_lexeme_begin, std::to_underlying(ExprTag::binary), ExprInfoOpt {}};
             ExprPtr lhs = parse_and(lexer, source);
 
             while (!at_eof()) {
@@ -708,11 +708,11 @@ namespace Edna::Frontend {
             const auto var_decl_lexeme_begin = m_current.begin;
             const auto var_decl_line = m_current.line;
 
-            ParseGuard guard {m_infos, var_decl_lexeme_begin, std::to_underlying(StmtTag::var_decl), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, var_decl_lexeme_begin, std::to_underlying(StmtTag::var_decl), ExprInfoOpt {}};
 
             consume(lexer, source, "Expected identifier before initializer here.", TokenTag::identifier);
             
-            Token name_token = m_previous;
+            const auto name_token = m_previous;
 
             consume(lexer, source, "Expected '=' before initializer here.", TokenTag::op_assign);
 
@@ -728,7 +728,7 @@ namespace Edna::Frontend {
             const auto vars_lexeme_begin = m_current.begin;
             const auto vars_line = m_current.line;
 
-            ParseGuard guard {m_infos, vars_lexeme_begin, std::to_underlying(StmtTag::var_decl), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, vars_lexeme_begin, std::to_underlying(StmtTag::var_decl), ExprInfoOpt {}};
 
             consume(lexer, source, "Expected beginning 'mut' or 'let' for variable declaration(s).", TokenTag::keyword_let, TokenTag::keyword_mut);
 
@@ -765,7 +765,7 @@ namespace Edna::Frontend {
             const auto expr_stmt_lexeme_begin = m_current.begin;
             const auto expr_stmt_line = m_current.line;
 
-            ParseGuard guard {m_infos, expr_stmt_lexeme_begin, std::to_underlying(StmtTag::expr_stmt), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, expr_stmt_lexeme_begin, std::to_underlying(StmtTag::expr_stmt), ExprInfoOpt {}};
             ExprPtr lhs_expr = parse_call(lexer, source);
 
             if (match_token(TokenTag::op_assign)) {
@@ -804,12 +804,12 @@ namespace Edna::Frontend {
             const auto function_decl_lexeme_begin = m_current.begin;
             const auto function_decl_line = m_current.line;
 
-            ParseGuard guard {m_infos, function_decl_lexeme_begin, std::to_underlying(StmtTag::function_decl), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, function_decl_lexeme_begin, std::to_underlying(StmtTag::function_decl), ExprInfoOpt {}};
 
             consume(lexer, source, "Expected 'fun' beginning this function definition.", TokenTag::keyword_fun);
             consume(lexer, source, "Expected identifier here.", TokenTag::identifier);
 
-            Token function_name_token = m_previous;
+            const auto function_name_token = m_previous;
 
             consume(lexer, source, "Expected '(' opening parameter list here.", TokenTag::left_paren);
 
@@ -862,7 +862,7 @@ namespace Edna::Frontend {
         }
 
         [[nodiscard]] AllDecls operator()(Lexer& lexer, std::string_view source) {
-            ParseGuard guard {m_infos, 0, std::to_underlying(StmtTag::top_level), ExprInfoOpt {}};
+            const ParseGuard guard {m_infos, 0, std::to_underlying(StmtTag::top_level), ExprInfoOpt {}};
 
             AllDecls decl_vec;
 
