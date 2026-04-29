@@ -7,8 +7,8 @@
 
 #### Expressions
 ```
-<primary> = "null" | <boolean> | <int> | <real> | <string> | <identifier> | <array> | <block> | <cond> | <lambda> | "(" <expr> ")"
-<array> = "[" ( <expr> ( "," <expr> )* )? "]"
+<primary> = "null" | <boolean> | <int> | <real> | <string> | <identifier> | <list> | <block> | <cond> | <lambda> | "(" <expr> ")"
+<list> = "[" <expr> ( "," <expr> )* "]"
 <block> = "{" <stmt>+ "}"
     ; NOTE: all blocks have their trailing expr-statement as a return!
 <cond> = "cond" "{" <cases>* <else> "}"
@@ -45,6 +45,9 @@
 
 #### Future Syntax
 ```
+<table> = "table" "{" <inline-field> ( "," <inline-field> )* "}"
+<inline-field> = ( <identifier> ":" <expr> )
+
 <macro> = "macro" <identifier> <macro-args> <macro-body>
     ; NOTE: call a macro as #<identifier>
 <macro-args> = "(" <macro-params> ")"
