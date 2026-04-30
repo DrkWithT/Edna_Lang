@@ -14,7 +14,7 @@ namespace Edna::Runtime {
     export enum class EvalStatus : std::uint8_t {
         pending,
         ok,
-        memory,
+        alloc_fail,
         bad_op_arg,
         unsupported_op,
         build_failure
@@ -44,13 +44,13 @@ namespace Edna::Runtime {
         virtual bool gt(void* ctx, const ObjectBase& object) const noexcept = 0;
         virtual bool equals(void* ctx, const ObjectBase& object) const noexcept = 0;
 
-        virtual const ObjectBase* get_prototype(void* ctx, bool use_proto) const noexcept = 0;
-        virtual ObjectBase* get_prototype(void* ctx, bool use_proto) noexcept = 0;
+        virtual V get_prototype() const noexcept = 0;
+        virtual void set_prototype(V proto_v) noexcept = 0;
 
         virtual V get_property(void* ctx, V key, bool use_protos) = 0;
-        virtual V get_property(void* ctx, int pos, bool use_protos) = 0;
-        virtual void set_property(void* ctx, V key, bool use_protos) = 0;
-        virtual void set_property(void* ctx, int pos, bool use_protos) = 0;
+        virtual V get_property(void* ctx, int pos) = 0;
+        virtual void set_property(void* ctx, V key, V item, bool use_protos) = 0;
+        virtual void set_property(void* ctx, int pos, V item) = 0;
 
         virtual std::string as_str(void* ctx) const = 0;
 

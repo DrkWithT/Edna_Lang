@@ -106,25 +106,23 @@ namespace Edna::Runtime {
             return Value::create_from_dud(); // todo
         }
 
-        [[nodiscard]] Value get_property(void* ctx, int pos, bool use_protos) override {
+        [[nodiscard]] Value get_property(void* ctx, int pos) override {
             return Value::create_from_dud(); // todo
         }
 
-        void set_property(void* ctx, Value key, bool use_protos) override {
+        void set_property(void* ctx, Value key, Value item, bool use_protos) override {
             ; // todo
         }
 
-        void set_property(void* ctx, int pos, bool use_protos) override {
+        void set_property(void* ctx, int pos, Value item) override {
             ; // todo
         }
 
-        [[nodiscard]] const ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) const noexcept override {
-            return nullptr;
+        [[nodiscard]] Value get_prototype() const noexcept override {
+            return Value::create_from_dud();
         }
 
-        [[nodiscard]] ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) noexcept override {
-            return nullptr;
-        }
+        void set_prototype([[maybe_unused]] Value proto_v) noexcept override {}
 
         [[nodiscard]] std::string as_str(void* ctx) const override {
             std::ostringstream sout;
@@ -194,31 +192,24 @@ namespace Edna::Runtime {
             return object.get_native_fn_ptr() == m_native_fp;
         }
 
-        [[nodiscard]] const ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) const noexcept override {
-            return nullptr;
+        [[nodiscard]] Value get_prototype() const noexcept override {
+            return Value::create_from_dud();
         }
 
-        [[nodiscard]] ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) noexcept override {
-            return nullptr;
-        }
+        void set_prototype([[maybe_unused]] Value proto_v) noexcept override {}
 
         [[nodiscard]] Value get_property(void* ctx, Value key, bool use_protos) override {
             ; // todo
             return Value::create_from_dud();
         }
 
-        [[nodiscard]] Value get_property(void* ctx, int pos, bool use_protos) override {
-            ; // todo
+        [[nodiscard]] Value get_property(void* ctx, int pos) override {
             return Value::create_from_dud();
         }
 
-        void set_property(void* ctx, Value key, bool use_protos) override {
-            ; // todo
-        }
+        void set_property(void* ctx, Value key, Value item, bool use_protos) override {}
 
-        void set_property(void* ctx, int pos, bool use_protos) override {
-            ; // todo
-        }
+        void set_property(void* ctx, int pos, Value item) override {}
 
         [[nodiscard]] std::string as_str(void* ctx) const override {
             return std::format("NativeCallable({}) {{...}}", reinterpret_cast<void*>(m_native_fp));

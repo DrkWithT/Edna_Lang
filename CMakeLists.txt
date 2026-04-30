@@ -21,8 +21,9 @@ target_sources(
     src/edna_impl/runtime/value.ixx
     src/edna_impl/runtime/bytecode.ixx
     src/edna_impl/runtime/context.ixx
-    src/edna_impl/runtime/callables.ixx
     src/edna_impl/runtime/meta.ixx
+    src/edna_impl/runtime/callables.ixx
+    src/edna_impl/runtime/tables.ixx
     src/edna_impl/runtime/handlers1.ixx
     src/edna_impl/runtime/vm.ixx
 )

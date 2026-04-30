@@ -150,7 +150,7 @@ namespace Edna::Compile {
                 c.encode_instruction(Runtime::Opcode::jump_else, 0); //? dud jump
             }
             // if (!c.within_assignable) {
-            //     c.encode_instruction(Runtime::Opcode::pop, 1); //? the check's boolean is already used, so yeet it
+            //     c.encode_instruction(Runtime::Opcode::pop, 1);
             // }
 
             //? 3: Emit result code to evaluate, as it's fully evaluated value will remain as the one temporary from the cond.
@@ -167,6 +167,11 @@ namespace Edna::Compile {
 
             //? 4.2: Emit NOP to mark the end of the result code- It's where the current JUMP_ELSE will go to.
             const std::uint16_t end_case_body_ip = c.chunks.back().code.size();
+
+            if (!c.needs_prepass) {
+                c.encode_instruction(Runtime::Opcode::pop, 1);
+            }
+
             c.encode_instruction(Runtime::Opcode::nop);
 
             //? 4.3: Patch JUMP_ELSE from 2... The skip jump positions are each returned and collected for patching later, once the cond's last bytecode position is known.
@@ -267,20 +272,22 @@ namespace Edna::Compile {
         [[nodiscard]] bool emit(CompileContext& c, const Frontend::ExprNode& expr, const std::string& source) override {
             if (c.needs_prepass) {
                 return true;
-            }
-
-            const auto& [expr_data, expr_line, expr_tag] = expr; // todo: use line info for errors
-            const auto& [array_items] = std::get<Frontend::ArrayLiteral>(expr_data);
-
-            const std::uint16_t item_count = array_items.size();
-
-            for (const auto& item_expr : array_items) {
-                if (!c.emit_expr(*item_expr, source)) {
-                    return false;
+            } else {
+                const auto& [expr_data, expr_line, expr_tag] = expr; // todo: use line info for errors
+                const auto& [array_items] = std::get<Frontend::ArrayLiteral>(expr_data);
+                const std::uint16_t item_count = array_items.size();
+                
+                for (const auto& item_expr : array_items) {
+                    if (item_expr->tag == Frontend::ExprTag::block) {
+                        c.report_error("Block expressions are unsupported in array literals.", expr_line);
+                        return false;
+                    } else if (!c.emit_expr(*item_expr, source)) {
+                        return false;
+                    }
                 }
+                
+                c.encode_instruction(Runtime::Opcode::make_array, item_count);
             }
-
-            c.encode_instruction(Runtime::Opcode::make_array, item_count);
 
             return true;
         }
@@ -636,8 +643,12 @@ namespace Edna::Compile {
                         return false;
                     }
 
-                    if (!c.emit_expr(*source_expr, source)) {
-                        return false;
+                    {
+                        const FlagGuard<bool> assign_member_rhs_guard {&c.within_assignable, false};
+
+                        if (!c.emit_expr(*source_expr, source)) {
+                            return false;
+                        }
                     }
 
                     c.encode_instruction(Runtime::Opcode::set_prop, c.key_count);
