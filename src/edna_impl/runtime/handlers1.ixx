@@ -4,11 +4,13 @@ module;
 // #include <utility>
 // #include <type_traits>
 #include <array>
+#include <span>
 // #include <print>
 
 export module edna.runtime.handlers1;
 
 export import edna.runtime.meta;
+import edna.runtime.tables;
 
 namespace Edna::Runtime {
     export struct Handlers {
@@ -107,11 +109,76 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_get_prop(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            // ? NOTE: This indexing locates the target object to access something from.
+            const std::uint32_t base_slot = c.sp - static_cast<std::uint32_t>(ip->arg);
+            auto temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+
+            for (std::uint32_t key_offset = 0; key_offset < ip->arg; key_offset++) {
+                // ? NOTE: Start iterating here through the sequence of keys from the spot just above the target object...
+                if (const Value temp_key = stack[base_slot + 1 + key_offset]; temp_key.hint() == ValueScalarHint::integer) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key.scalar());
+                } else if (temp_key.hint() == ValueScalarHint::heap_id) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key, true);
+                } else {
+                    return EvalStatus::bad_op_arg;
+                }
+            }
+
+            c.sp = base_slot;
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_set_prop(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            // ? NOTE: This indexing locates the target object to access something from.
+            const std::uint32_t base_slot = c.sp - static_cast<std::uint32_t>(ip->arg) - 1;
+            auto temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+
+            for (std::uint32_t key_offset = 0; key_offset < ip->arg - 1; key_offset++) {
+                // ? NOTE: Start iterating here through the sequence of keys from the spot just above the target object...
+                if (const Value temp_key = stack[base_slot + 1 + key_offset]; temp_key.hint() == ValueScalarHint::integer) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key.scalar());
+                } else if (temp_key.hint() == ValueScalarHint::heap_id) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key, true);
+                } else {
+                    return EvalStatus::bad_op_arg;
+                }
+
+                if (const auto& next_target = stack[base_slot].hint() == ValueScalarHint::heap_id) {
+                    temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+                } else {
+                    return EvalStatus::bad_op_arg;
+                }
+
+                if (temp_obj_ptr == nullptr) {
+                    return EvalStatus::bad_op_arg;
+                }
+            }
+
+            // ? NOTE: layout of property-set for stack:
+            // * Example: object.foo.bar = 1234
+            // * Top: |  1234  | <-- SET: result.bar = 1234
+            // *      |  .bar  | <-- STOP access loop here!
+            // *      |  .foo  |
+            // * Btm: | object | <-- This is the base_slot. The SP reverts here.
+            if (const Value edit_key = stack[c.sp - 1], result = stack[c.sp]; edit_key.hint() == ValueScalarHint::integer) {
+                temp_obj_ptr->set_property(std::addressof(c), edit_key.scalar(), result);
+                stack[base_slot] = result;
+                c.sp = base_slot;
+            } else if (edit_key.hint() == ValueScalarHint::heap_id) {
+                temp_obj_ptr->set_property(std::addressof(c), edit_key, result, true);
+                stack[base_slot] = result;
+                c.sp = base_slot;
+            } else {
+                return EvalStatus::bad_op_arg;
+            }
+
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_pop(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
@@ -123,7 +190,27 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_make_array(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            const std::uint32_t base_pos = c.sp - static_cast<std::uint32_t>(ip->arg) + 1;
+            const std::span<Value> temps {
+                stack + base_pos,
+                stack + c.sp + 1,
+            };
+
+            if (auto array_table = new Table {}; array_table) {
+                for (int next_index = 0; const auto& v : temps) {
+                    array_table->set_property(std::addressof(c), next_index, v);
+                    next_index++;
+                }
+
+                c.sp = base_pos;
+                stack[c.sp] = Value::create_from_id(c.heap.store(array_table), HeapIdOpt {});
+                ip++;
+            } else {
+                return EvalStatus::alloc_fail;
+            }
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_make_object(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
@@ -482,6 +569,7 @@ namespace Edna::Runtime {
             if (stack[c.sp].scalar() != 0) {
                 ip += ip->arg;
             } else {
+                c.sp--;
                 ip++;
             }
 
@@ -494,6 +582,7 @@ namespace Edna::Runtime {
             if (stack[c.sp].scalar() == 0) {
                 ip += ip->arg;
             } else {
+                c.sp--;
                 ip++;
             }
 

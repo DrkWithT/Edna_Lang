@@ -203,7 +203,7 @@ namespace Edna::Runtime {
         // }
     };
 
-    export void display_value(const Value& v) {
+    export void display_value(const ObjectHeap<Value>& heap, const Value& v) {
         if (const auto v_hint = v.hint(); v_hint == Edna::Runtime::ValueScalarHint::real) {
             std::println("{}", v.as_double());
         } else if (const auto v_hint = v.hint(); v_hint == Edna::Runtime::ValueScalarHint::null) {
@@ -213,7 +213,7 @@ namespace Edna::Runtime {
         } else if (v_hint == Edna::Runtime::ValueScalarHint::integer) {
             std::println("{}", v.scalar());
         } else if (v_hint == Edna::Runtime::ValueScalarHint::heap_id) {
-            std::println("heap-object(id = {})", v.scalar());
+            std::println("{}", heap.at(static_cast<int>(v.scalar()))->as_str(nullptr));
         } else {
             std::println("(QNaN)");
         }
