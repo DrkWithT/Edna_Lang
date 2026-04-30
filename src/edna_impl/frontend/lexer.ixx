@@ -39,7 +39,7 @@ namespace Edna::Frontend {
     }
 
     [[nodiscard]] constexpr bool like_symbolic(char c) noexcept {
-        return like_disjoint(c, '.', '?', '%', '*', '/', '+', '-', '!', '=', '<', '>', '&', '|');
+        return like_disjoint(c, '@', '?', '%', '*', '/', '+', '-', '!', '=', '<', '>', '&', '|');
     }
 
 

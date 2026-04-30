@@ -3,11 +3,11 @@
 let nums = [10, 20];
 let nested = [[100]];
 
-nums . 0 = 0;
-nums . 1 = 0;
-nested . 0 . 0 = 0;
+nums@0 = 0;
+nums@1 = 0;
+nested@0@0 = 0;
 
-# ! should be 0
-print(nums . 0 + nums . 1 + (nested . 0 . 0));
+# should be 0
+print(nums@0 + nums@1 + (nested@0@0));
 
 true;

@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
     driver.map_lexical("||", Frontend::TokenTag::op_or);
     driver.map_lexical("=", Frontend::TokenTag::op_assign);
     driver.map_lexical("=>", Frontend::TokenTag::arrow);
-    driver.map_lexical(".", Frontend::TokenTag::dot);
+    driver.map_lexical("@", Frontend::TokenTag::locusor);
     driver.map_lexical("...", Frontend::TokenTag::ellipses);
 
     driver.add_expr_emitter<Compile::AtomEmitter>(Frontend::ExprTag::atom);

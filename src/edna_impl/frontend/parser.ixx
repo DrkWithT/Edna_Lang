@@ -394,7 +394,7 @@ namespace Edna::Frontend {
             ExprPtr lhs = parse_atom(lexer, source);
 
             while (!at_eof()) {
-                if (match_token(TokenTag::dot)) {
+                if (match_token(TokenTag::locusor)) {
                     consume(lexer, source);
                     consume(lexer, source, "Expected identifier or integer for '.' access of member.", TokenTag::identifier, TokenTag::literal_int);
 

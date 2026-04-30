@@ -45,7 +45,7 @@ namespace Edna::Frontend {
         colon,
         comma,
         arrow,
-        dot,
+        locusor,
         ellipses,
         left_paren,
         right_paren,
