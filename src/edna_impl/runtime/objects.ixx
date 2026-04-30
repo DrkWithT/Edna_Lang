@@ -6,7 +6,6 @@ module;
 #include <memory>
 #include <string>
 #include <vector>
-#include <stack>
 
 export module edna.runtime.objects;
 
@@ -68,7 +67,7 @@ namespace Edna::Runtime {
         using object_base_value = ObjectBase<BasicValue>;
 
     private:
-        std::stack<int> m_free_list;
+        std::vector<int> m_free_list;
         std::vector<std::unique_ptr<object_base_value>> m_cells;
         std::size_t m_overhead;
         std::size_t m_ripeness_threshold;
@@ -78,9 +77,9 @@ namespace Edna::Runtime {
 
         [[nodiscard]] constexpr int try_use_id() noexcept {
             if (!m_free_list.empty()) {
-                const int reused_id = m_free_list.top();
+                const int reused_id = m_free_list.back();
 
-                m_free_list.pop();
+                m_free_list.pop_back();
 
                 return reused_id;
             }
@@ -162,7 +161,7 @@ namespace Edna::Runtime {
         constexpr void destroy_at(int heap_id) {
             if (heap_id >= m_tenure_count && heap_id < m_max_id) {
                 m_cells[heap_id] = {};
-                m_free_list.push(heap_id);
+                m_free_list.push_back(heap_id);
                 m_overhead -= object_cost_v;
             }
         }

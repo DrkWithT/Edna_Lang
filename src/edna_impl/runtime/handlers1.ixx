@@ -1,11 +1,8 @@
 module;
 
 #include <cstdint>
-// #include <utility>
-// #include <type_traits>
 #include <array>
 #include <span>
-// #include <print>
 
 export module edna.runtime.handlers1;
 
@@ -264,15 +261,8 @@ namespace Edna::Runtime {
 
             if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() * rhs.as_double());
-            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
-                switch (lhs_hint) {
-                    case ValueScalarHint::integer:
-                        stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
-                        break;
-                    default:
-                        stack[c.sp] = Value::create_as_nan();
-                        break;
-                }
+            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint && lhs_hint == ValueScalarHint::integer) {
+                stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
             }
@@ -321,15 +311,8 @@ namespace Edna::Runtime {
 
             if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() + rhs.as_double());
-            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
-                switch (lhs_hint) {
-                    case ValueScalarHint::integer:
-                        stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
-                        break;
-                    default:
-                        stack[c.sp] = Value::create_as_nan();
-                        break;
-                }
+            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint && lhs_hint == ValueScalarHint::integer) {
+                stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
             }
@@ -345,15 +328,8 @@ namespace Edna::Runtime {
 
             if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() - rhs.as_double());
-            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
-                switch (lhs_hint) {
-                    case ValueScalarHint::integer:
-                        stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
-                        break;
-                    default:
-                        stack[c.sp] = Value::create_as_nan();
-                        break;
-                }
+            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint && lhs_hint == ValueScalarHint::integer) {
+                stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
             }
