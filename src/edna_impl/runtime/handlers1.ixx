@@ -112,10 +112,16 @@ namespace Edna::Runtime {
 
             for (std::uint32_t key_offset = 0; key_offset < ip->arg; key_offset++) {
                 // ? NOTE: Start iterating here through the sequence of keys from the spot just above the target object...
+                if (temp_obj_ptr == nullptr) {
+                    return EvalStatus::bad_op_arg;
+                }
+
                 if (const Value temp_key = stack[base_slot + 1 + key_offset]; temp_key.hint() == ValueScalarHint::integer) {
                     stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key.scalar());
+                    temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
                 } else if (temp_key.hint() == ValueScalarHint::heap_id) {
                     stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key, true);
+                    temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
                 } else {
                     return EvalStatus::bad_op_arg;
                 }
