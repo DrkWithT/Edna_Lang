@@ -22,6 +22,8 @@ namespace Edna::Frontend {
         keyword_else,
         keyword_symbol,
         keyword_prec,
+        keyword_do,
+        keyword_end,
         op_neg,
         op_bang,
         op_mod,

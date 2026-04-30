@@ -334,7 +334,8 @@ namespace Edna::Frontend {
             }
 
             switch (peeked) {
-            case ';': return lex_comment(source);
+            case '#': return lex_comment(source);
+            case ';': return lex_single(source, TokenTag::semicolon);
             case ':': return lex_single(source, TokenTag::colon);
             case ',': return lex_single(source, TokenTag::comma);
             case '(': return lex_single(source, TokenTag::left_paren);

@@ -152,7 +152,7 @@ namespace Edna {
 
             std::println("Runtime: \x1b[1;33m{}\x1b[0m ms", std::chrono::duration_cast<std::chrono::milliseconds>(running_time));
 
-            Runtime::display_value(vm.result());
+            Runtime::display_value(vm.context().heap, vm.result());
 
             return vm.context().status;
         }
@@ -167,7 +167,7 @@ namespace Edna {
     const std::span<Edna::Runtime::Value> arguments {vm_context->stack.get() + callee_bp + 1, static_cast<std::uint32_t>(argc)};
 
     for (const auto& value_ref : arguments) {
-        Edna::Runtime::display_value(value_ref);
+        Edna::Runtime::display_value(vm_context->heap, value_ref);
         std::print(" ");
     }
     std::println("");
@@ -236,6 +236,7 @@ int main(int argc, char* argv[]) {
     driver.map_lexical("else", Frontend::TokenTag::keyword_else);
     driver.map_lexical("symbol", Frontend::TokenTag::keyword_symbol);
     driver.map_lexical("prec", Frontend::TokenTag::keyword_prec);
+    driver.map_lexical("end", Frontend::TokenTag::keyword_end);
     driver.map_lexical("-", Frontend::TokenTag::op_neg);
     driver.map_lexical("!", Frontend::TokenTag::op_bang);
     driver.map_lexical("%", Frontend::TokenTag::op_mod);

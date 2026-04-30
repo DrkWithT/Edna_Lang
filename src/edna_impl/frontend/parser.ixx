@@ -396,7 +396,7 @@ namespace Edna::Frontend {
             while (!at_eof()) {
                 if (match_token(TokenTag::dot)) {
                     consume(lexer, source);
-                    consume(lexer, source, "Expected identifier for '.' access of member.", TokenTag::identifier);
+                    consume(lexer, source, "Expected identifier or integer for '.' access of member.", TokenTag::identifier, TokenTag::literal_int);
 
                     lhs = std::make_unique<ExprNode>(ExprNode {
                         .data = Lhs {
@@ -746,6 +746,8 @@ namespace Edna::Frontend {
                 variable_decls.emplace_back(parse_var_decl(lexer, source));
             }
 
+            consume(lexer, source, "Expected ';' after variables declaration.", TokenTag::semicolon);
+
             return std::make_unique<StmtNode>(StmtNode {
                 .data = Vars {
                     .decls = std::move(variable_decls),
@@ -766,11 +768,15 @@ namespace Edna::Frontend {
             const auto expr_stmt_line = m_current.line;
 
             const ParseGuard guard {m_infos, expr_stmt_lexeme_begin, std::to_underlying(StmtTag::expr_stmt), ExprInfoOpt {}};
+
             ExprPtr lhs_expr = parse_call(lexer, source);
 
             if (match_token(TokenTag::op_assign)) {
                 consume(lexer, source);
+
                 ExprPtr rhs_expr = parse_or(lexer, source);
+
+                consume(lexer, source, "Expected ';' after expression statement.", TokenTag::semicolon);
 
                 return std::make_unique<StmtNode>(StmtNode {
                     .data = ExprStmt {
@@ -788,6 +794,8 @@ namespace Edna::Frontend {
                     .tag = StmtTag::expr_stmt
                 });
             }
+
+            consume(lexer, source, "Expected ';' after expression statement.", TokenTag::semicolon);
 
             return std::make_unique<StmtNode>(StmtNode {
                 .data = ExprStmt {

@@ -381,7 +381,7 @@ namespace Edna::Compile {
 
             {
                 const FlagGuard<bool> access_guard {&c.within_access, true};
-                const FlagGuard<int> key_count_guard {&c.key_count, c.key_count};
+                const FlagGuard<int> key_count_guard {&c.key_count, 0};
                 
                 c.access_depth++;
                 
@@ -428,6 +428,8 @@ namespace Edna::Compile {
 
             const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
+            c.has_native_callee = false;
+
             //? Emit callee code with optionally defaulted null for 'self'.
             {
                 const FlagGuard<bool> call_guard {&c.within_call, true};
@@ -438,17 +440,19 @@ namespace Edna::Compile {
                 }
 
                 if (!c.emit_expr(*call_fun, source)) {
-                    c.has_native_callee = false;
                     return false;
                 }
             }
 
+            const auto old_native_callee_flag = c.has_native_callee;
+
             for (const auto& arg_expr : call_args) {
                 if (!c.emit_expr(*arg_expr, source)) {
-                    c.has_native_callee = false;
                     return false;
                 }
             }
+
+            c.has_native_callee = old_native_callee_flag;
 
             c.encode_instruction(
                 (c.has_native_callee) ? Runtime::Opcode::call_native : Runtime::Opcode::call_fun,
