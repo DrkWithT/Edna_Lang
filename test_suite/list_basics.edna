@@ -1,0 +1,11 @@
+# test list literals and basic get / set accesses:
+
+let nums = [10, 20];
+
+nums.0 = 0;
+nums.1 = 0;
+
+# should be 0
+print(nums.0 + nums.1);
+
+true;
