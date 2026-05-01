@@ -20,6 +20,7 @@ namespace Edna::Runtime {
     export struct UseNativeTypeOpt {};
     export struct LocalIdOpt {};
     export struct HeapIdOpt {};
+    export struct StrIdOpt {};
 
     export enum class ValueScalarHint : std::uint8_t {
         nan,
@@ -29,6 +30,7 @@ namespace Edna::Runtime {
         real,
         local_id,
         heap_id,
+        str_id,
         last
     };
 
@@ -37,7 +39,7 @@ namespace Edna::Runtime {
         using bits_type = std::uint64_t;
         using num_type = double;
 
-        static_assert(sizeof(num_type) == 8 && sizeof(bits_type) == 8, "Unsupported platform, 64-bit integers and floats must be supported for NaN boxing!");
+        static_assert(sizeof(num_type) == 8 && sizeof(bits_type) == 8, "Unsupported platform, 64-bit integers and floats are required for NaN boxing.");
     
     private:
         static constexpr bits_type qnan_prefix = 0x7ffc000000000000;
@@ -125,6 +127,10 @@ namespace Edna::Runtime {
 
         [[nodiscard]] static constexpr Value create_from_id(int i, [[maybe_unused]] HeapIdOpt opt) noexcept {
             return Value {ValueScalarOpt {}, ValueScalarHint::heap_id, i};
+        }
+
+        [[nodiscard]] static constexpr Value create_from_id(int i, [[maybe_unused]] StrIdOpt opt) noexcept {
+            return Value {ValueScalarOpt {}, ValueScalarHint::str_id, i};
         }
 
         [[nodiscard]] static constexpr Value create_from_double(double d) noexcept {

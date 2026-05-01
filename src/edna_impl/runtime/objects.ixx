@@ -101,19 +101,19 @@ namespace Edna::Runtime {
 
         ObjectHeap(std::size_t capacity)
         : m_free_list {}, m_cells {}, m_overhead {}, m_ripeness_threshold {(object_cost_v * capacity * 2) / 3}, m_next_id {0}, m_max_id {std::numeric_limits<int>::max() - 1}, m_tenure_count {0} {
-            m_cells.reserve(static_cast<std::size_t>(capacity));
-            m_cells.resize(static_cast<std::size_t>(capacity));
+            m_cells.reserve(capacity);
+            m_cells.resize(capacity);
         }
 
         constexpr void tenure_preloads() noexcept {
             m_tenure_count = m_next_id;
         }
 
-        constexpr bool needs_gc() const noexcept {
+        [[nodiscard]] constexpr bool needs_gc() const noexcept {
             return m_overhead >= m_ripeness_threshold;
         }
 
-        std::vector<std::unique_ptr<object_base_value>>& cells() noexcept {
+        [[nodiscard]] std::vector<std::unique_ptr<object_base_value>>& cells() noexcept {
             return m_cells;
         }
 
