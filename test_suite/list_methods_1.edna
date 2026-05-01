@@ -1,0 +1,18 @@
+# test simplest list methods: len(), at()
+
+let items = [null, true, false];
+
+# test length getter
+let count = items @ len();
+
+# test valid index yielding 
+let good = items @ at(1);
+
+# test OOB index yielding null
+let bad = items @ at(3);
+
+print(count);
+print(good);
+print(bad);
+
+true;

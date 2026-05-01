@@ -35,37 +35,30 @@ A good scripting language should be flexible, expressive, and simple to not hind
 ```
 ; line comment here
 
-mut foo = 42
+mut foo = 42;
 
 ; custom operators
-symbol `?` prec unary `-` = fun (a) => a == null
+symbol `?` prec unary `-` = fun (a) => a == null;
 
 ; use custom null-check operator
-let isAnswer = ?foo
-
-fun answer(x) uses (foo, bar, baz) => x + foo
+let isAnswer = ?foo;
 
 fun fib(n) {
     cond {
         case n < 2 => { n }
         else => { fib(n - 1) + fib(n - 2) }
-    }
-}
+    };
+};
 
-fun matchAny(arg, ...targets) => targets.any(
-    fun (item) uses arg => arg == item
-)
-
-let foo = [1, 2, 3, 4]
-let count = foo.len()
-let foo_it = foo.iter()
-let foo_rev = foo.iter_r()
-let one = foo_it.peek()
-let four = foo_it.skip(3)
-foo.reverse()
-let dud = foo_it.done()
-let median = (foo.1 + foo.2) / 2
-
+let foo = [1, 2, 3, 4];
+let count = foo.len();
+let foo_it = foo.iter();
+let foo_rev = foo.iter_r();
+let one = foo_it.peek();
+let four = foo_it.skip(3);
+foo.reverse();
+let dud = foo_it.done();
+let median = (foo.1 + foo.2) / 2;
 ```
 
 #### Roadmap
@@ -74,10 +67,19 @@ let median = (foo.1 + foo.2) / 2
  3. Add peephole optimization passes for bytecode: **OK**
     - Place super instructions.
     - Remove non-trailing NOPs.
- 4. Implement native prototype support: This is crucial for tables! **WIP**
-   - Create general list prototype.
+ 4. Implement native prototype support: This is crucial for tables!
+   - Add immutable string values and their string pool. **OK**
+   - Support string values in property access codegen. **OK**
+   - Fix driver to insert name-to-function properties. **OK**
+   - Create general list prototype. All native prototypes are sealed. **WIP**
+      - Getters: `len(), at(key)`
+      - Iterators: `iter(), iter_r(), peek(offset), done()`
+         - Add iterator values??
    - Create registry methods for native prototypes e.g list's...
+   - Add `push_str` opcode support!
    - Test tables in programs.
- 5. Add simple methods for tables:
-    - Getters: `empty(), len(), has(key)`
-    - Iterators: `iter(), iter_r(), peek(offset), skip(), skip_n(skips), done()`
+ 6. Add missing operators e.g `&&`, `||`, and compound assignent operators.
+ 7. Add macro support:
+   - Add support for metatokens enclosed in \` and \`.
+   - Add parsing support for macros.
+   - Add macro substitution stage.

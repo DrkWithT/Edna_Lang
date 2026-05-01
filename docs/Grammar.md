@@ -49,7 +49,7 @@
 <inline-field> = ( <identifier> ":" <expr> )
 
 <macro> = "macro" <identifier> <macro-args> <macro-body>
-    ; NOTE: call a macro as #<identifier>
+    ; NOTE: call a macro as $<identifier>
 <macro-args> = "(" <macro-params> ")"
 <macro-params> = ("literal" | "operator" | "expr") <identifier> "..."?
 <macro-body> = <block>
