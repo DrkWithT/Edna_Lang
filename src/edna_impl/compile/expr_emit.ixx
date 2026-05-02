@@ -18,6 +18,15 @@ import edna.runtime.callables;
 namespace Edna::Compile {
     export class AtomEmitter : public ExprEmitterBase {
     private:
+        [[nodiscard]] bool emit_key(CompileContext& c, const Frontend::Token& atom_token, const std::string& source) {
+            const std::string key_contents = atom_token.as_string_from(source);
+            auto key_locus_it = c.record_str_symbol(key_contents);
+
+            c.encode_instruction(Runtime::Opcode::push_str, key_locus_it->id);
+
+            return true;
+        }
+
         [[nodiscard]] bool emit_name(CompileContext& c, const Frontend::Token& atom_token, const std::string& source) {
             std::string atom_lexeme = atom_token.as_string_from(source);
 
@@ -35,6 +44,10 @@ namespace Edna::Compile {
                 c.has_native_callee = name_is_foreign;
             } else if (domain_tag == Domain::local) {
                 c.encode_instruction(Runtime::Opcode::get_local, domain_id);
+
+                if (c.access_depth > 0 && c.within_call) {
+                    c.encode_instruction(Runtime::Opcode::dup);
+                }
             } else if (atom_lexeme == c.current_name && c.within_call) {
                 c.encode_instruction(Runtime::Opcode::push_callee);
             } else {
@@ -61,9 +74,9 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr;
             const auto& [atom_token] = std::get<Frontend::Atom>(expr_data);
 
-            if (atom_token.tag == Frontend::TokenTag::identifier) {
-                return emit_name(c, atom_token, source);
-            }
+            // if (atom_token.tag == Frontend::TokenTag::identifier) {
+            //     return emit_name(c, atom_token, source);
+            // }
 
             std::string literal_lexeme = atom_token.as_string_from(source);
 
@@ -110,8 +123,13 @@ namespace Edna::Compile {
                     c.report_error("Escaped string literals are not yet supported.", expr_line);
                     return false; // todo
                 }
-                case Frontend::TokenTag::identifier:
-                    return emit_name(c, atom_token, source);
+                case Frontend::TokenTag::identifier: {
+                    if (c.within_access && c.key_count > 0) {
+                        return emit_key(c, atom_token, source);
+                    } else {
+                        return emit_name(c, atom_token, source);
+                    }
+                }
                 default: break;
             }
 
@@ -277,6 +295,8 @@ namespace Edna::Compile {
                 const auto& [array_items] = std::get<Frontend::ArrayLiteral>(expr_data);
                 const std::uint16_t item_count = array_items.size();
                 
+                c.encode_instruction(Runtime::Opcode::push_global, c.lookup_global_symbol("__proto_list__")->id);
+
                 for (const auto& item_expr : array_items) {
                     if (item_expr->tag == Frontend::ExprTag::block) {
                         c.report_error("Block expressions are unsupported in array literals.", expr_line);
@@ -362,12 +382,8 @@ namespace Edna::Compile {
     };
 
     export class LhsEmitter : public ExprEmitterBase {
-    private:
-        std::uint16_t m_key_count;
-
     public:
-        constexpr LhsEmitter() noexcept
-        : m_key_count {0} {}
+        constexpr LhsEmitter() noexcept = default;
 
         [[nodiscard]] bool emit(CompileContext& c, const Frontend::ExprNode& expr, const std::string& source) override {
             if (c.needs_prepass && !c.within_assignable) {
@@ -384,28 +400,25 @@ namespace Edna::Compile {
                 const FlagGuard<int> key_count_guard {&c.key_count, 0};
                 
                 c.access_depth++;
-                
+
                 //? 1. Emit code for target object reference for property access of.
                 if (!c.emit_expr(*access_lhs, source)) {
                     return false;
                 }
                 
                 //? 2. Emit code for item / property accessing value.
+                key_count_guard.current()++;
+
                 if (!c.emit_expr(*access_rhs, source)) {
                     return false;
                 }
-                
-                key_count_guard.current()++;
+
                 c.access_depth--;
                 saved_key_count = key_count_guard.current();
-                
+
                 if (c.access_depth == 0 && !c.within_assignable) {
                     //? GET_PROP derefs its result value implicitly.
                     c.encode_instruction(Runtime::Opcode::get_prop, key_count_guard.current());
-
-                    // if (!c.within_assignable) {
-                    //     c.encode_instruction(Runtime::Opcode::deref);
-                    // }
                 }
             }
 

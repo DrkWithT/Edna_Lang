@@ -8,7 +8,8 @@ module;
 
 export module edna.runtime.bytecode;
 
-export import edna.runtime.value;
+export import edna.runtime.string_pool;
+export import edna.runtime.values;
 
 namespace Edna::Runtime {
     export enum class Opcode : std::uint8_t {
@@ -20,6 +21,7 @@ namespace Edna::Runtime {
         push_callee,
         // TODO: add 'push_self' opcode!
         push_global,
+        push_str,
         push_const,
         get_local,
         set_local,
@@ -73,7 +75,8 @@ namespace Edna::Runtime {
     };
 
     export struct Program {
-        ObjectHeap<Value> pre_heap;
+        ObjectHeap pre_heap;
+        StringPool str_pool;
         std::vector<Value> globals;
         std::vector<Chunk> chunks;
     };
@@ -86,6 +89,7 @@ namespace Edna::Runtime {
             "push_bool",
             "push_callee",
             "push_global",
+            "push_str",
             "push_const",
             "get_local",
             "set_local",
@@ -128,10 +132,11 @@ namespace Edna::Runtime {
             "integer",
             "real",
             "local_id",
-            "heap_id"
+            "heap_id",
+            "str_id"
         };
 
-        const auto& [program_heap, program_globals, program_chunk] = program;
+        const auto& [program_heap, program_strings, program_globals, program_chunk] = program;
 
         std::println("\x1b[1;33mProgram dump:\x1b[0m\n\n");
 
@@ -143,6 +148,8 @@ namespace Edna::Runtime {
             std::println("constant {}:", constant_id);
 
             display_value(program_heap, constant_v);
+
+            std::println("");
 
             constant_id++;
         }
