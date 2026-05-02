@@ -15,13 +15,17 @@ export module edna.runtime.callables;
 export import edna.runtime.context;
 
 namespace Edna::Runtime {
-    export class Callable : public ObjectBase<Value> {
-    public:
-        using properties = typename ObjectBase::properties;
-        using items = typename ObjectBase::items;
-        using bytecode_type = Chunk*;
-
+    export class Callable : public ObjectBase {
     private:
+        struct Entry {
+            Value key;
+            Value item;
+            bool is_mutable;
+        };
+
+        using properties = std::vector<Entry>;
+        using items = std::vector<Value>;
+
         static constexpr std::array<std::string_view, static_cast<std::size_t>(Opcode::last)> op_names = {
             "nop",
             "dup",
@@ -29,6 +33,7 @@ namespace Edna::Runtime {
             "push_bool",
             "push_callee",
             "push_global",
+            "push_str",
             "push_const",
             "get_local",
             "set_local",
@@ -71,7 +76,8 @@ namespace Edna::Runtime {
             "integer",
             "real",
             "local_id",
-            "heap_id"
+            "heap_id",
+            "str_id"
         };
 
         properties m_properties;
@@ -90,15 +96,15 @@ namespace Edna::Runtime {
             return true;
         }
 
-        [[nodiscard]] bool lt(void* ctx, const ObjectBase<Value>& object) const noexcept override {
+        [[nodiscard]] bool lt(void* ctx, const ObjectBase& object) const noexcept override {
             return false;
         }
 
-        [[nodiscard]] bool gt(void* ctx, const ObjectBase<Value>& object) const noexcept override {
+        [[nodiscard]] bool gt(void* ctx, const ObjectBase& object) const noexcept override {
             return false;
         }
 
-        [[nodiscard]] bool equals(void* ctx, const ObjectBase<Value>& object) const noexcept override {
+        [[nodiscard]] bool equals(void* ctx, const ObjectBase& object) const noexcept override {
             return this == std::addressof(object);
         }
 
@@ -168,7 +174,7 @@ namespace Edna::Runtime {
         }
     };
 
-    export class NativeCallable : public ObjectBase<Value> {
+    export class NativeCallable : public ObjectBase {
     private:
         native_routine_type m_native_fp;
 
@@ -192,27 +198,26 @@ namespace Edna::Runtime {
             return object.get_native_fn_ptr() == m_native_fp;
         }
 
-        [[nodiscard]] Value get_prototype() const noexcept override {
+        [[nodiscard]] Runtime::Value get_prototype() const noexcept override {
             return Value::create_from_dud();
         }
 
-        void set_prototype([[maybe_unused]] Value proto_v) noexcept override {}
+        void set_prototype([[maybe_unused]] Runtime::Value proto_v) noexcept override {}
 
-        [[nodiscard]] Value get_property(void* ctx, Value key, bool use_protos) override {
-            ; // todo
+        [[nodiscard]] Runtime::Value get_property(void* ctx, Runtime::Value key, bool use_protos) override {
             return Value::create_from_dud();
         }
 
-        [[nodiscard]] Value get_property(void* ctx, int pos) override {
+        [[nodiscard]] Runtime::Value get_property(void* ctx, int pos) override {
             return Value::create_from_dud();
         }
 
-        void set_property(void* ctx, Value key, Value item, bool use_protos) override {}
+        void set_property(void* ctx, Runtime::Value key, Runtime::Value item, bool use_protos) override {}
 
         void set_property(void* ctx, int pos, Value item) override {}
 
         [[nodiscard]] std::string as_str(void* ctx) const override {
-            return std::format("NativeCallable({}) {{...}}", reinterpret_cast<void*>(m_native_fp));
+            return std::format("NativeCallable({}) {{...}}", reinterpret_cast<const void*>(m_native_fp));
         }
 
         [[nodiscard]] const void* get_code_data() const noexcept override {

@@ -10,12 +10,18 @@ export module edna.runtime.tables;
 export import edna.runtime.context;
 
 namespace Edna::Runtime {
-    export class Table : public ObjectBase<Value> {
+    export class Table : public ObjectBase {
     public:
         // ? std::vector<PropertyEntry<Value>>
-        using properties = typename ObjectBase::properties;
-        // ? std::vector<Value>
-        using items = typename ObjectBase::items;
+        struct Entry {
+            Runtime::Value key;
+            Runtime::Value item;
+            bool is_mutable;
+        };
+
+        using properties = std::vector<Entry>;
+        using items = std::vector<Value>;
+        using bytecode_type = Chunk*;
 
     private:
         properties m_properties;
@@ -25,6 +31,10 @@ namespace Edna::Runtime {
     public:
         constexpr Table() noexcept
         : m_properties {}, m_items {}, m_prototype {} {}
+
+        [[nodiscard]] const items& indexables() const noexcept {
+            return m_items;
+        }
 
         [[nodiscard]] bool test(void* ctx) const noexcept override {
             return true;
@@ -42,15 +52,15 @@ namespace Edna::Runtime {
             return this == reinterpret_cast<const void*>(std::addressof(object));
         }
 
-        [[nodiscard]] Value get_prototype() const noexcept override {
+        [[nodiscard]] Runtime::Value get_prototype() const noexcept override {
             return m_prototype;
         }
 
-        void set_prototype(Value proto_v) noexcept override {
+        void set_prototype(Runtime::Value proto_v) noexcept override {
             m_prototype = proto_v;
         }
 
-        [[nodiscard]] Value get_property(void* ctx, Value key, bool use_protos) override {
+        [[nodiscard]] Runtime::Value get_property(void* ctx, Runtime::Value key, bool use_protos) override {
             if (auto prop_it = std::find_if(
                 m_properties.begin(),
                 m_properties.end(),
@@ -59,14 +69,14 @@ namespace Edna::Runtime {
                 }
             ); prop_it != m_properties.end()) {
                 return prop_it->item;
-            } else if (auto prototype_ptr = reinterpret_cast<EvalContext*>(ctx)->heap.at(m_prototype.scalar()); prototype_ptr) {
+            } else if (auto prototype_ptr = reinterpret_cast<EvalContext*>(ctx)->heap.at(m_prototype.scalar()); prototype_ptr != nullptr) {
                 return prototype_ptr->get_property(ctx, key, use_protos);
             }
 
             return Value::create_from_dud();
         }
 
-        [[nodiscard]] Value get_property(void* ctx, int pos) override {
+        [[nodiscard]] Runtime::Value get_property(void* ctx, int pos) override {
             if (const auto pos_usize = static_cast<std::size_t>(pos); pos_usize < m_items.size()) {
                 return m_items[pos_usize];
             }
@@ -74,7 +84,7 @@ namespace Edna::Runtime {
             return Value::create_from_dud();
         }
 
-        void set_property(void* ctx, Value key, Value item, bool use_protos) override {
+        void set_property(void* ctx, Runtime::Value key, Value item, bool use_protos) override {
             if (auto prop_it = std::find_if(
                 m_properties.begin(),
                 m_properties.end(),
@@ -83,17 +93,21 @@ namespace Edna::Runtime {
                 }
             ); prop_it != m_properties.end()) {
                 prop_it->item = item;
-            } else if (auto prototype_ptr = reinterpret_cast<EvalContext*>(ctx)->heap.at(m_prototype.scalar()); prototype_ptr != nullptr && use_protos) {
+            } else if (!use_protos) {
+                m_properties.emplace_back(key, item, true);
+            } else if (auto prototype_ptr = reinterpret_cast<EvalContext*>(ctx)->heap.at(m_prototype.scalar()); prototype_ptr != nullptr) {
                 prototype_ptr->set_property(ctx, key, item, use_protos);
             }
         }
 
-        void set_property(void* ctx, int pos, Value item) override {
-            if (const auto pos_usize = static_cast<std::size_t>(pos); pos_usize >= m_items.size()) {
-                m_items.emplace_back(item);
-            } else {
-                m_items[pos_usize] = item;
+        void set_property(void* ctx, int pos, Runtime::Value item) override {
+            const auto pos_usize = static_cast<std::size_t>(pos);
+
+            if (pos_usize >= m_items.size()) {
+                m_items.resize(pos_usize + 1);
             }
+
+            m_items[pos_usize] = item;
         }
 
         [[nodiscard]] std::string as_str(void* ctx) const override {

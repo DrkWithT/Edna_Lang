@@ -1,17 +1,29 @@
 module;
 
 #include <utility>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <type_traits>
 #include <cmath>
+#include <numeric>
+#include <memory>
+#include <string>
+#include <vector>
 #include <print>
 
-export module edna.runtime.value;
-
-export import edna.runtime.objects;
+export module edna.runtime.values;
 
 namespace Edna::Runtime {
+    export enum class EvalStatus : std::uint8_t {
+        pending,
+        ok,
+        alloc_fail,
+        bad_op_arg,
+        unsupported_op,
+        build_failure
+    };
+
+    //? NOTE: I must use void* to pass in an EvalContext*. This is because Clang++ will not compile my program with error 'note: hidden overloaded virtual function 'Edna::Runtime::ObjectBase::get_property' declared here: type mismatch at 1st parameter ('EvalContext *' vs 'EvalContext *')' strangely, even if a non-exported forward declaration of Runtime::EvalContext* is used otherwise. std::any would incur a RTTI runtime cost in the hot interpreter code for every native built-in call, which seems excessive to me.
+    export using native_routine_type = EvalStatus(*)(void*, std::uint8_t argc);
+
     export struct ValueNullOpt {};
     export struct ValueNaNOpt {};
     export struct ValueInfOpt {};
@@ -42,6 +54,10 @@ namespace Edna::Runtime {
         static_assert(sizeof(num_type) == 8 && sizeof(bits_type) == 8, "Unsupported platform, 64-bit integers and floats are required for NaN boxing.");
     
     private:
+        // ? BOXED LAYOUT:
+        // ? | QNAN-pfx | unused bits lmao |
+        // ?                   |         \
+        // ? | QNAN-pfx | 32-bit scalar | 4-bit hint |
         static constexpr bits_type qnan_prefix = 0x7ffc000000000000;
         static constexpr bits_type pos_inf_prefix = 0x7f80000000000000;
         static constexpr bits_type neg_inf_prefix = 0xff80000000000000;
@@ -172,8 +188,6 @@ namespace Edna::Runtime {
             return data;
         }
 
-
-
         constexpr void load_aliased_data([[maybe_unused]] ValueNaNOpt opt) noexcept {
             data = data_from_bits_type(qnan_prefix);
         }
@@ -185,43 +199,157 @@ namespace Edna::Runtime {
         constexpr void load_aliased_data([[maybe_unused]] ValueScalarOpt opt, ValueScalarHint hint, int scalar) noexcept {
             data = data_from_bits_type(encode_bits_type(hint, scalar));
         }
-
-        // template <typename C>
-        // [[nodiscard]] constexpr Value resolve_local_v(const C& ctx) {
-        //     Value temp {*this};
-
-        //     while (temp.is_nan() && temp.hint() == ValueScalarHint::local_id) {
-        //         temp = ctx.stack.at(temp.scalar());
-        //     }
-
-        //     return temp;
-        // }
-
-        // template <typename C>
-        // [[nodiscard]] constexpr ObjectBase<Value>* resolve_object_p(const C& ctx) {
-        //     auto resolved_value = resolve_local_v(ctx);
-
-        //     if (resolved_value.hint() != ValueScalarHint::heap_id) {
-        //         return nullptr;
-        //     }
-
-        //     return ctx.heap.get(resolved_value.scalar());
-        // }
     };
 
-    export void display_value(const ObjectHeap<Value>& heap, const Value& v) {
+    //? NOTE: This is the basic class of all native object types in Edna, allowing basic comparisons, call for functions, etc.
+    //! WARNING: The methods with EvalContext* ctx MUST have the EvalContext passed by pointer, so the reinterpret_cast back to EvalContext is sound.
+    export class ObjectBase {
+    public:
+        using items = std::vector<Runtime::Value>;
+
+        virtual ~ObjectBase() = default;
+
+        virtual bool test(void* ctx) const noexcept = 0;
+        virtual bool lt(void* ctx, const ObjectBase& object) const noexcept = 0;
+        virtual bool gt(void* ctx, const ObjectBase& object) const noexcept = 0;
+        virtual bool equals(void* ctx, const ObjectBase& object) const noexcept = 0;
+
+        virtual Value get_prototype() const noexcept = 0;
+        virtual void set_prototype(Value proto_v) noexcept = 0;
+
+        virtual Value get_property(void* ctx, Value key, bool use_protos) = 0;
+        virtual Value get_property(void* ctx, int pos) = 0;
+        virtual void set_property(void* ctx, Value key, Value item, bool use_protos) = 0;
+        virtual void set_property(void* ctx, int pos, Value item) = 0;
+
+        virtual std::string as_str(void* ctx) const = 0;
+
+        virtual const void* get_code_data() const noexcept = 0;
+        virtual void* get_code_data() noexcept = 0;
+        virtual native_routine_type get_native_fn_ptr() const noexcept = 0;
+    };
+
+    export class ObjectHeap {
+    public:
+        static constexpr std::size_t object_cost_v = 72;
+        static constexpr int dud_id = -1;
+
+    private:
+        std::vector<int> m_free_list;
+        std::vector<std::unique_ptr<ObjectBase>> m_cells;
+        std::size_t m_overhead;
+        std::size_t m_ripeness_threshold;
+        int m_next_id;
+        int m_max_id;
+        int m_tenure_count;
+
+        [[nodiscard]] constexpr int try_use_id() noexcept {
+            if (!m_free_list.empty()) {
+                const int reused_id = m_free_list.back();
+
+                m_free_list.pop_back();
+
+                return reused_id;
+            }
+
+            auto next_id = m_next_id;
+
+            if (next_id >= m_max_id) {
+                return dud_id;
+            }
+
+            m_next_id++;
+
+            return next_id;
+        }
+
+    public:
+        ObjectHeap()
+        : ObjectHeap {4096UL} {}
+
+        ObjectHeap(std::size_t capacity)
+        : m_free_list {}, m_cells {}, m_overhead {}, m_ripeness_threshold {(object_cost_v * capacity * 2) / 3}, m_next_id {0}, m_max_id {std::numeric_limits<int>::max() - 1}, m_tenure_count {0} {
+            m_cells.reserve(capacity);
+            m_cells.resize(capacity);
+        }
+
+        constexpr void tenure_preloads() noexcept {
+            m_tenure_count = m_next_id;
+        }
+
+        [[nodiscard]] constexpr bool needs_gc() const noexcept {
+            return m_overhead >= m_ripeness_threshold;
+        }
+
+        [[nodiscard]] std::vector<std::unique_ptr<ObjectBase>>& cells() noexcept {
+            return m_cells;
+        }
+
+        //! WARNING: object_p is meant to be a raw owning pointer (that's passed from the tail call optimized VM which cannot have non-trivially destructible things in opcode handlers) to some object. This overload exists to quickly manage the raw pointer in the "heap".
+        template <typename ObjectType> requires (std::is_base_of_v<ObjectBase, ObjectType>)
+        [[nodiscard]] int store(ObjectType* object_p) noexcept {
+            const auto result_id = try_use_id();
+
+            if (result_id != dud_id) {
+                m_cells[result_id] = std::unique_ptr<ObjectType>(object_p);
+                m_overhead += object_cost_v;
+            }
+
+            return result_id;
+        }
+
+        template <typename ObjectType> requires (std::is_base_of_v<ObjectBase, ObjectType>)
+        [[nodiscard]] int store(std::unique_ptr<ObjectType> object_p) {
+            const auto result_id = try_use_id();
+
+            if (result_id != dud_id) {
+                m_cells[result_id] = std::move(object_p);
+                m_overhead += object_cost_v;
+            }
+
+            return result_id;
+        }
+
+        constexpr const ObjectBase* at(int heap_id) const noexcept {
+            if (heap_id < 0 || heap_id >= m_max_id) {
+                return nullptr;
+            }
+
+            return m_cells[heap_id].get(); 
+        }
+
+        constexpr ObjectBase* at(int heap_id) noexcept {
+            if (heap_id < 0 || heap_id >= m_max_id) {
+                return nullptr;
+            }
+
+            return m_cells[heap_id].get();
+        }
+
+        constexpr void destroy_at(int heap_id) {
+            if (heap_id >= m_tenure_count && heap_id < m_max_id) {
+                m_cells[heap_id] = {};
+                m_free_list.push_back(heap_id);
+                m_overhead -= object_cost_v;
+            }
+        }
+    };
+
+    export void display_value(const ObjectHeap& heap, const Value& v) {
         if (const auto v_hint = v.hint(); v_hint == Edna::Runtime::ValueScalarHint::real) {
-            std::println("{}", v.as_double());
+            std::print("{}", v.as_double());
         } else if (const auto v_hint = v.hint(); v_hint == Edna::Runtime::ValueScalarHint::null) {
-            std::println("null");
+            std::print("null");
         } else if (v_hint == Edna::Runtime::ValueScalarHint::boolean) {
-            std::println("{}", v.scalar() != 0);
+            std::print("{}", v.scalar() != 0);
         } else if (v_hint == Edna::Runtime::ValueScalarHint::integer) {
-            std::println("{}", v.scalar());
+            std::print("{}", v.scalar());
         } else if (v_hint == Edna::Runtime::ValueScalarHint::heap_id) {
-            std::println("{}", heap.at(static_cast<int>(v.scalar()))->as_str(nullptr));
+            std::print("{}", heap.at(static_cast<int>(v.scalar()))->as_str(nullptr));
+        } else if (v_hint == Edna::Runtime::ValueScalarHint::nan) {
+            std::print("(QNaN)");
         } else {
-            std::println("(QNaN)");
+            std::print("??");
         }
     }
-};
+}
