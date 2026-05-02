@@ -15,13 +15,17 @@ export module edna.runtime.callables;
 export import edna.runtime.context;
 
 namespace Edna::Runtime {
-    export class Callable : public ObjectBase<Value> {
-    public:
-        using properties = typename ObjectBase::properties;
-        using items = typename ObjectBase::items;
-        using bytecode_type = Chunk*;
-
+    export class Callable : public ObjectBase {
     private:
+        struct Entry {
+            Value key;
+            Value item;
+            bool is_mutable;
+        };
+
+        using properties = std::vector<Entry>;
+        using items = std::vector<Value>;
+
         static constexpr std::array<std::string_view, static_cast<std::size_t>(Opcode::last)> op_names = {
             "nop",
             "dup",
@@ -29,6 +33,7 @@ namespace Edna::Runtime {
             "push_bool",
             "push_callee",
             "push_global",
+            "push_str",
             "push_const",
             "get_local",
             "set_local",
@@ -59,7 +64,9 @@ namespace Edna::Runtime {
             "call_ctor",
             "call_fun",
             "call_native",
-            "ret"
+            "ret",
+            "padd_lk",
+            "psub_lk"
         };
 
         static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constant_tags = {
@@ -69,13 +76,13 @@ namespace Edna::Runtime {
             "integer",
             "real",
             "local_id",
-            "heap_id"
+            "heap_id",
+            "str_id"
         };
 
         properties m_properties;
         items m_indexables;
 
-        std::size_t m_code_size;
         std::unique_ptr<Chunk> m_chunk; // TODO: make a NativeCallable type below this entire class.
 
         std::uint8_t m_arity;
@@ -83,21 +90,21 @@ namespace Edna::Runtime {
 
     public:
         explicit Callable(Chunk chunk, std::uint8_t expected_arity, bool is_ctor) noexcept
-        : m_code_size {chunk.code.size()}, m_chunk (std::make_unique<Chunk>(std::move(chunk))), m_properties {}, m_indexables {}, m_arity {expected_arity}, m_is_ctor {is_ctor} {}
+        : m_chunk (std::make_unique<Chunk>(std::move(chunk))), m_properties {}, m_indexables {}, m_arity {expected_arity}, m_is_ctor {is_ctor} {}
 
         [[nodiscard]] bool test(void* ctx) const noexcept override {
             return true;
         }
 
-        [[nodiscard]] bool lt(void* ctx, const ObjectBase<Value>& object) const noexcept override {
+        [[nodiscard]] bool lt(void* ctx, const ObjectBase& object) const noexcept override {
             return false;
         }
 
-        [[nodiscard]] bool gt(void* ctx, const ObjectBase<Value>& object) const noexcept override {
+        [[nodiscard]] bool gt(void* ctx, const ObjectBase& object) const noexcept override {
             return false;
         }
 
-        [[nodiscard]] bool equals(void* ctx, const ObjectBase<Value>& object) const noexcept override {
+        [[nodiscard]] bool equals(void* ctx, const ObjectBase& object) const noexcept override {
             return this == std::addressof(object);
         }
 
@@ -105,25 +112,23 @@ namespace Edna::Runtime {
             return Value::create_from_dud(); // todo
         }
 
-        [[nodiscard]] Value get_property(void* ctx, int pos, bool use_protos) override {
+        [[nodiscard]] Value get_property(void* ctx, int pos) override {
             return Value::create_from_dud(); // todo
         }
 
-        void set_property(void* ctx, Value key, bool use_protos) override {
+        void set_property(void* ctx, Value key, Value item, bool use_protos) override {
             ; // todo
         }
 
-        void set_property(void* ctx, int pos, bool use_protos) override {
+        void set_property(void* ctx, int pos, Value item) override {
             ; // todo
         }
 
-        [[nodiscard]] const ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) const noexcept override {
-            return nullptr;
+        [[nodiscard]] Value get_prototype() const noexcept override {
+            return Value::create_from_dud();
         }
 
-        [[nodiscard]] ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) noexcept override {
-            return nullptr;
-        }
+        void set_prototype([[maybe_unused]] Value proto_v) noexcept override {}
 
         [[nodiscard]] std::string as_str(void* ctx) const override {
             std::ostringstream sout;
@@ -140,7 +145,7 @@ namespace Edna::Runtime {
                 constant_id++;
             }
 
-            for (std::size_t instruction_pos = 0; instruction_pos < m_code_size; instruction_pos++) {
+            for (std::size_t instruction_pos = 0; instruction_pos < m_chunk->code.size(); instruction_pos++) {
                 const auto [opcode, arg] = m_chunk->code.at(instruction_pos);
 
                 sout << std::format(
@@ -160,12 +165,16 @@ namespace Edna::Runtime {
             return m_chunk.get();
         }
 
+        [[nodiscard]] void* get_code_data() noexcept override {
+            return m_chunk.get();
+        }
+
         [[nodiscard]] native_routine_type get_native_fn_ptr() const noexcept override {
             return nullptr;
         }
     };
 
-    export class NativeCallable : public ObjectBase<Value> {
+    export class NativeCallable : public ObjectBase {
     private:
         native_routine_type m_native_fp;
 
@@ -189,37 +198,33 @@ namespace Edna::Runtime {
             return object.get_native_fn_ptr() == m_native_fp;
         }
 
-        [[nodiscard]] const ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) const noexcept override {
-            return nullptr;
-        }
-
-        [[nodiscard]] ObjectBase<Value>* get_prototype(void* ctx, bool use_proto) noexcept override {
-            return nullptr;
-        }
-
-        [[nodiscard]] Value get_property(void* ctx, Value key, bool use_protos) override {
-            ; // todo
+        [[nodiscard]] Runtime::Value get_prototype() const noexcept override {
             return Value::create_from_dud();
         }
 
-        [[nodiscard]] Value get_property(void* ctx, int pos, bool use_protos) override {
-            ; // todo
+        void set_prototype([[maybe_unused]] Runtime::Value proto_v) noexcept override {}
+
+        [[nodiscard]] Runtime::Value get_property(void* ctx, Runtime::Value key, bool use_protos) override {
             return Value::create_from_dud();
         }
 
-        void set_property(void* ctx, Value key, bool use_protos) override {
-            ; // todo
+        [[nodiscard]] Runtime::Value get_property(void* ctx, int pos) override {
+            return Value::create_from_dud();
         }
 
-        void set_property(void* ctx, int pos, bool use_protos) override {
-            ; // todo
-        }
+        void set_property(void* ctx, Runtime::Value key, Runtime::Value item, bool use_protos) override {}
+
+        void set_property(void* ctx, int pos, Value item) override {}
 
         [[nodiscard]] std::string as_str(void* ctx) const override {
-            return std::format("NativeCallable({}) {{...}}", reinterpret_cast<void*>(m_native_fp));
+            return std::format("NativeCallable({}) {{...}}", reinterpret_cast<const void*>(m_native_fp));
         }
 
         [[nodiscard]] const void* get_code_data() const noexcept override {
+            return nullptr;
+        }
+
+        [[nodiscard]] void* get_code_data() noexcept override {
             return nullptr;
         }
 

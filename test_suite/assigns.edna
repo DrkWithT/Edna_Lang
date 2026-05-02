@@ -1,7 +1,9 @@
-; test assignments
+# test assignments
 
-let foo = 15
-let bar = 27
-let ans = print(foo + bar)
+let foo = 15, bar = 27, ans = 0;
 
-ans
+ans = foo + bar;
+
+print(ans);
+
+true;

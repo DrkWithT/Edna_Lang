@@ -13,24 +13,24 @@ module;
 export module edna.compile.context;
 
 import edna.frontend.ast;
-import edna.runtime.bytecode;
+export import edna.runtime.bytecode;
 
 namespace Edna::Compile {
     export enum class Domain : std::uint8_t {
         immediate,
         self,
-        global, //? built-in name (constant Value / ObjectBase-ID)
-        constant, //? chunk constant ID
-        local, //? current local value ID per stack frame (0 - 255)... Can map to a constant-ref to a heap object!
-        // heap,
+        global,     // ? built-in name (constant Value / ObjectBase-ID)
+        constant,   // ? chunk constant ID
+        local,      // ? current local value ID per stack frame (0 - 255)... Can map to a constant-ref to a heap object!
+        str,        // ? interned string ID
         last
     };
 
     export struct SymbolInfo {
         std::uint16_t id;
         Domain domain;
-        bool is_key_str; //? symbol is a name if false... otherwise, it's an interned string literal
-        bool is_foreign; //? denotes a native / non-local symbol, so dynamic lookup in environment objects is needed...
+        bool is_key_str; // ? symbol is a name if false... otherwise, it's an interned string literal
+        bool is_foreign; // ? denotes a native / non-local symbol, so dynamic lookup in environment objects is needed...
     };
 
     export struct SymbolScope {
@@ -95,7 +95,8 @@ namespace Edna::Compile {
         std::array<std::unique_ptr<ExprEmitterBase>, static_cast<std::size_t>(Frontend::ExprTag::last)> expr_emitters;
         std::array<std::unique_ptr<StmtEmitterBase>, static_cast<std::size_t>(Frontend::StmtTag::last)> stmt_emitters;
 
-        Runtime::ObjectHeap<Runtime::Value> heap;
+        Runtime::ObjectHeap heap;
+        Runtime::StringPool str_pool;
         std::vector<Runtime::Value> globals;
         std::vector<SymbolScope> scopes;
         std::vector<Runtime::Chunk> chunks;
@@ -114,8 +115,8 @@ namespace Edna::Compile {
         bool within_call;
         bool has_native_callee;
 
-        CompileContext(std::size_t heap_objects_capacity)
-        : expr_emitters {}, stmt_emitters {}, heap {heap_objects_capacity}, globals {}, scopes {}, chunks {}, current_name {}, function_body_scope_depth {0}, access_depth {0}, key_count {0}, error_count {0}, needs_prepass {false}, within_func_body {false}, within_access {false}, within_assignable {false}, within_call {false}, has_native_callee {false} {
+        CompileContext(std::size_t heap_objects_capacity, std::size_t string_capacity)
+        : expr_emitters {}, stmt_emitters {}, heap {heap_objects_capacity}, str_pool {string_capacity}, globals {}, scopes {}, chunks {}, current_name {}, function_body_scope_depth {0}, access_depth {0}, key_count {0}, error_count {0}, needs_prepass {false}, within_func_body {false}, within_access {false}, within_assignable {false}, within_call {false}, has_native_callee {false} {
             //? 1. Establish top-level scoping & codegen data for correctness. Nested scopes will make nested mappings as such.
             scopes.emplace_back(SymbolScope {
                 .locations = {},
@@ -196,14 +197,16 @@ namespace Edna::Compile {
                     .is_foreign = false
                 };
 
-                scopes.front().locations[symbol] = temp_locus;
+                if (!symbol.empty()) {
+                    scopes.front().locations[symbol] = temp_locus;
+                }
 
                 return temp_locus;
-            } else if constexpr (std::is_base_of_v<item_type, std::unique_ptr<Runtime::ObjectBase<Runtime::Value>>>) {
+            } else if constexpr (std::is_base_of_v<item_type, std::unique_ptr<Runtime::ObjectBase>>) {
                 // todo: register object base to heap & do globals.emplace of global Value with heap_id: xxx...
                 const int object_id = heap.store(std::move(item_arg));
 
-                if (object_id == Runtime::ObjectHeap<Runtime::Value>::dud_id) {
+                if (object_id == Runtime::ObjectHeap::dud_id) {
                     return {};
                 }
 
@@ -222,11 +225,35 @@ namespace Edna::Compile {
                     .is_foreign = true
                 };
 
-                scopes.front().locations[symbol] = temp_locus;
+                if (!symbol.empty()) {
+                    scopes.front().locations[symbol] = temp_locus;
+                }
 
                 return temp_locus;
             } else {
                 return {};
+            }
+        }
+
+        [[nodiscard]] std::optional<SymbolInfo> record_str_symbol(std::string s) {
+            std::string key_contents = s;
+            const std::string key_lexeme = std::format("`{}`", key_contents);
+
+            if (auto key_locus_it = scopes.front().locations.find(key_lexeme); key_locus_it != scopes.front().locations.end()) {
+                return key_locus_it->second;
+            } else {
+                const auto next_str_id = static_cast<std::uint16_t>(str_pool.store(key_contents));
+
+                SymbolInfo result_locus {
+                    .id = next_str_id,
+                    .domain = Domain::str,
+                    .is_key_str = true,
+                    .is_foreign = false
+                };
+
+                scopes.front().locations[key_lexeme] = result_locus;
+
+                return result_locus;
             }
         }
 
@@ -354,8 +381,12 @@ namespace Edna::Compile {
 
         c.encode_instruction(Runtime::Opcode::ret);
 
+        c.heap.tenure_preloads();
+        c.str_pool.tenure_preloads();
+
         return Runtime::Program {
             .pre_heap = std::move(c.heap),
+            .str_pool = std::move(c.str_pool),
             .globals = std::move(c.globals),
             .chunks = std::move(c.chunks)
         };

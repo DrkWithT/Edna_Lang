@@ -3,32 +3,36 @@ module;
 #include <utility>
 #include <array>
 #include <string_view>
-// #include <memory>
 #include <vector>
 #include <print>
 
 export module edna.runtime.bytecode;
 
-export import edna.runtime.value;
+export import edna.runtime.string_pool;
+export import edna.runtime.values;
 
 namespace Edna::Runtime {
     export enum class Opcode : std::uint8_t {
         nop,
+        // * BEGIN STACK OPCODES
         dup,
         push_null,
         push_bool,
         push_callee,
         // TODO: add 'push_self' opcode!
         push_global,
+        push_str,
         push_const,
         get_local,
         set_local,
         get_prop,
         set_prop,
         pop,
+        // * BEGIN OBJECT OPCODES:
         make_array,
         make_object,
         deref,
+        // * BEGIN MATH / COMPARISON OPCODES:
         negate_bool,
         negate_num,
         mod,
@@ -43,6 +47,7 @@ namespace Edna::Runtime {
         compare_gt,
         compare_gte,
         test,
+        // * BEGIN CONTROL FLOW OPCODES:
         jump,
         jump_back,
         jump_if,
@@ -53,6 +58,9 @@ namespace Edna::Runtime {
         ret,
         // throw_obj,
         // catch_obj
+        // * BEGIN SUPER OPCODES:
+        padd_lk,
+        psub_lk,
         last
     };
 
@@ -67,7 +75,8 @@ namespace Edna::Runtime {
     };
 
     export struct Program {
-        ObjectHeap<Value> pre_heap;
+        ObjectHeap pre_heap;
+        StringPool str_pool;
         std::vector<Value> globals;
         std::vector<Chunk> chunks;
     };
@@ -80,6 +89,7 @@ namespace Edna::Runtime {
             "push_bool",
             "push_callee",
             "push_global",
+            "push_str",
             "push_const",
             "get_local",
             "set_local",
@@ -110,7 +120,9 @@ namespace Edna::Runtime {
             "call_ctor",
             "call_fun",
             "call_native",
-            "ret"
+            "ret",
+            "padd_lk",
+            "psub_lk"
         };
 
         static constexpr std::array<std::string_view, static_cast<std::size_t>(ValueScalarHint::last)> constants_names = {
@@ -120,10 +132,11 @@ namespace Edna::Runtime {
             "integer",
             "real",
             "local_id",
-            "heap_id"
+            "heap_id",
+            "str_id"
         };
 
-        const auto& [program_heap, program_globals, program_chunk] = program;
+        const auto& [program_heap, program_strings, program_globals, program_chunk] = program;
 
         std::println("\x1b[1;33mProgram dump:\x1b[0m\n\n");
 
@@ -134,11 +147,9 @@ namespace Edna::Runtime {
         for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
             std::println("constant {}:", constant_id);
 
-            if (constant_v.hint() == ValueScalarHint::heap_id) {
-                std::println("{}", program_heap.at(static_cast<int>(constant_v.scalar()))->as_str(nullptr));
-            } else {
-                display_value(constant_v);
-            }
+            display_value(program_heap, constant_v);
+
+            std::println("");
 
             constant_id++;
         }

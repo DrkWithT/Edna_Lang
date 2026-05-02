@@ -1,0 +1,38 @@
+# edna macro test: basic generative macros
+
+# macros can appear anywhere since they're hoisted
+let fibsum5 = 0;
+
+# this macro is variadic to generate exprs with arbitrary arguments...
+# macros can raise compile errors too!
+macro sum_all(num, ...nums) {
+    cond {
+        case !? $nums {
+            ($sum_all($nums) + $num)
+        }
+        else {
+            0
+        }
+    }
+};
+
+fibsum5 = $sum_all(1, 1, 2, 3, 5);
+
+# introspecting macros are predicates which indicate something about an AST...
+metafun is_iterable(arg) {
+    cond {
+        case $arg of `array` {
+            true
+        }
+        else {
+            false
+        }
+    }
+};
+
+let is_array_iterable = $is_iterable([1, 2, 3]);
+
+print(fibsum5);
+print(is_array_iterable);
+
+true;

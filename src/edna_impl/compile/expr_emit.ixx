@@ -16,12 +16,17 @@ import edna.compile.context;
 import edna.runtime.callables;
 
 namespace Edna::Compile {
-    // TODO: 1: make expr emitters
-    // TODO: 2: make stmt emitters
-    // TODO: 3: test VM on fibonacci
-
     export class AtomEmitter : public ExprEmitterBase {
     private:
+        [[nodiscard]] bool emit_key(CompileContext& c, const Frontend::Token& atom_token, const std::string& source) {
+            const std::string key_contents = atom_token.as_string_from(source);
+            auto key_locus_it = c.record_str_symbol(key_contents);
+
+            c.encode_instruction(Runtime::Opcode::push_str, key_locus_it->id);
+
+            return true;
+        }
+
         [[nodiscard]] bool emit_name(CompileContext& c, const Frontend::Token& atom_token, const std::string& source) {
             std::string atom_lexeme = atom_token.as_string_from(source);
 
@@ -39,6 +44,10 @@ namespace Edna::Compile {
                 c.has_native_callee = name_is_foreign;
             } else if (domain_tag == Domain::local) {
                 c.encode_instruction(Runtime::Opcode::get_local, domain_id);
+
+                if (c.access_depth > 0 && c.within_call) {
+                    c.encode_instruction(Runtime::Opcode::dup);
+                }
             } else if (atom_lexeme == c.current_name && c.within_call) {
                 c.encode_instruction(Runtime::Opcode::push_callee);
             } else {
@@ -65,9 +74,9 @@ namespace Edna::Compile {
             const auto& [expr_data, expr_line, expr_tag] = expr;
             const auto& [atom_token] = std::get<Frontend::Atom>(expr_data);
 
-            if (atom_token.tag == Frontend::TokenTag::identifier) {
-                return emit_name(c, atom_token, source);
-            }
+            // if (atom_token.tag == Frontend::TokenTag::identifier) {
+            //     return emit_name(c, atom_token, source);
+            // }
 
             std::string literal_lexeme = atom_token.as_string_from(source);
 
@@ -114,8 +123,13 @@ namespace Edna::Compile {
                     c.report_error("Escaped string literals are not yet supported.", expr_line);
                     return false; // todo
                 }
-                case Frontend::TokenTag::identifier:
-                    return emit_name(c, atom_token, source);
+                case Frontend::TokenTag::identifier: {
+                    if (c.within_access && c.key_count > 0) {
+                        return emit_key(c, atom_token, source);
+                    } else {
+                        return emit_name(c, atom_token, source);
+                    }
+                }
                 default: break;
             }
 
@@ -150,9 +164,11 @@ namespace Edna::Compile {
             //? 2: Emit JUMP_ELSE, record code position...
             const std::uint16_t skip_jump_ip = c.chunks.back().code.size();
 
-            c.encode_instruction(Runtime::Opcode::jump_else, 0); //? dud jump
+            if (!c.needs_prepass) {
+                c.encode_instruction(Runtime::Opcode::jump_else, 0); //? dud jump
+            }
             // if (!c.within_assignable) {
-            //     c.encode_instruction(Runtime::Opcode::pop, 1); //? the check's boolean is already used, so yeet it
+            //     c.encode_instruction(Runtime::Opcode::pop, 1);
             // }
 
             //? 3: Emit result code to evaluate, as it's fully evaluated value will remain as the one temporary from the cond.
@@ -163,10 +179,17 @@ namespace Edna::Compile {
             //? 4.1: Emit JUMP to skip out of the cond. Only 1 case / else is run.
             const std::uint16_t exit_jump_ip = c.chunks.back().code.size();
 
-            c.encode_instruction(Runtime::Opcode::jump, 0); //? dud jump
+            if (!c.needs_prepass) {
+                c.encode_instruction(Runtime::Opcode::jump, 0); //? dud jump
+            }
 
             //? 4.2: Emit NOP to mark the end of the result code- It's where the current JUMP_ELSE will go to.
             const std::uint16_t end_case_body_ip = c.chunks.back().code.size();
+
+            if (!c.needs_prepass) {
+                c.encode_instruction(Runtime::Opcode::pop, 1);
+            }
+
             c.encode_instruction(Runtime::Opcode::nop);
 
             //? 4.3: Patch JUMP_ELSE from 2... The skip jump positions are each returned and collected for patching later, once the cond's last bytecode position is known.
@@ -267,20 +290,24 @@ namespace Edna::Compile {
         [[nodiscard]] bool emit(CompileContext& c, const Frontend::ExprNode& expr, const std::string& source) override {
             if (c.needs_prepass) {
                 return true;
-            }
+            } else {
+                const auto& [expr_data, expr_line, expr_tag] = expr; // todo: use line info for errors
+                const auto& [array_items] = std::get<Frontend::ArrayLiteral>(expr_data);
+                const std::uint16_t item_count = array_items.size();
+                
+                c.encode_instruction(Runtime::Opcode::push_global, c.lookup_global_symbol("__proto_list__")->id);
 
-            const auto& [expr_data, expr_line, expr_tag] = expr; // todo: use line info for errors
-            const auto& [array_items] = std::get<Frontend::ArrayLiteral>(expr_data);
-
-            const std::uint16_t item_count = array_items.size();
-
-            for (const auto& item_expr : array_items) {
-                if (!c.emit_expr(*item_expr, source)) {
-                    return false;
+                for (const auto& item_expr : array_items) {
+                    if (item_expr->tag == Frontend::ExprTag::block) {
+                        c.report_error("Block expressions are unsupported in array literals.", expr_line);
+                        return false;
+                    } else if (!c.emit_expr(*item_expr, source)) {
+                        return false;
+                    }
                 }
+                
+                c.encode_instruction(Runtime::Opcode::make_array, item_count);
             }
-
-            c.encode_instruction(Runtime::Opcode::make_array, item_count);
 
             return true;
         }
@@ -355,12 +382,8 @@ namespace Edna::Compile {
     };
 
     export class LhsEmitter : public ExprEmitterBase {
-    private:
-        std::uint16_t m_key_count;
-
     public:
-        constexpr LhsEmitter() noexcept
-        : m_key_count {0} {}
+        constexpr LhsEmitter() noexcept = default;
 
         [[nodiscard]] bool emit(CompileContext& c, const Frontend::ExprNode& expr, const std::string& source) override {
             if (c.needs_prepass && !c.within_assignable) {
@@ -374,31 +397,28 @@ namespace Edna::Compile {
 
             {
                 const FlagGuard<bool> access_guard {&c.within_access, true};
-                const FlagGuard<int> key_count_guard {&c.key_count, c.key_count};
+                const FlagGuard<int> key_count_guard {&c.key_count, 0};
                 
                 c.access_depth++;
-                
+
                 //? 1. Emit code for target object reference for property access of.
                 if (!c.emit_expr(*access_lhs, source)) {
                     return false;
                 }
                 
                 //? 2. Emit code for item / property accessing value.
+                key_count_guard.current()++;
+
                 if (!c.emit_expr(*access_rhs, source)) {
                     return false;
                 }
-                
-                key_count_guard.current()++;
+
                 c.access_depth--;
                 saved_key_count = key_count_guard.current();
-                
+
                 if (c.access_depth == 0 && !c.within_assignable) {
                     //? GET_PROP derefs its result value implicitly.
                     c.encode_instruction(Runtime::Opcode::get_prop, key_count_guard.current());
-
-                    // if (!c.within_assignable) {
-                    //     c.encode_instruction(Runtime::Opcode::deref);
-                    // }
                 }
             }
 
@@ -421,6 +441,8 @@ namespace Edna::Compile {
 
             const FlagGuard<int> key_count_guard {&c.key_count, 0};
 
+            c.has_native_callee = false;
+
             //? Emit callee code with optionally defaulted null for 'self'.
             {
                 const FlagGuard<bool> call_guard {&c.within_call, true};
@@ -431,17 +453,19 @@ namespace Edna::Compile {
                 }
 
                 if (!c.emit_expr(*call_fun, source)) {
-                    c.has_native_callee = false;
                     return false;
                 }
             }
 
+            const auto old_native_callee_flag = c.has_native_callee;
+
             for (const auto& arg_expr : call_args) {
                 if (!c.emit_expr(*arg_expr, source)) {
-                    c.has_native_callee = false;
                     return false;
                 }
             }
+
+            c.has_native_callee = old_native_callee_flag;
 
             c.encode_instruction(
                 (c.has_native_callee) ? Runtime::Opcode::call_native : Runtime::Opcode::call_fun,
@@ -636,8 +660,12 @@ namespace Edna::Compile {
                         return false;
                     }
 
-                    if (!c.emit_expr(*source_expr, source)) {
-                        return false;
+                    {
+                        const FlagGuard<bool> assign_member_rhs_guard {&c.within_assignable, false};
+
+                        if (!c.emit_expr(*source_expr, source)) {
+                            return false;
+                        }
                     }
 
                     c.encode_instruction(Runtime::Opcode::set_prop, c.key_count);

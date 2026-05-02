@@ -12,63 +12,74 @@ A good scripting language should be flexible, expressive, and simple to not hind
 
 #### Features
  - Extenders:
-    - User defined operators with custom precedence levels
-    - Function annotations
+    - User defined operators with custom precedence levels (TODO)
+    - AST macros (TODO)
  - Types:
     - Strict equality is similar to JS: if the types are different, it's a no-go.
-    - Type conversions should be closed and non-lossy e.g `bool` -> `int` -> `double`.
+    - No type conversions, as there are explicit type conversion functions (TODO)
  - Functions:
     - Can be procedures or constructors.
     - Procedures have custom capture clauses for finer control.
     - Constructors are procedures that just assemble a dynamic object with properties.
     - Can have a trailing pack parameter.
  - Objects:
-    - Prototype-based OO with explicit qualifiers:
+    - Prototype-based OO with qualifiers:
         - `sealed` vs. `frozen`
+    - Prototype chain is meant for inherited methods, etc... Only singular inheritance is allowed.
+    - Classes will be syntax sugar for a table with an injected prototype.
+    - Methods take an implicit `self` parameter to their caller object.
+    - Use `super` to refer to the next prototype.
  - Syntax:
     - Rust mixed with JS
 
 ```
 ; line comment here
 
-mut foo = 42
+mut foo = 42;
 
 ; custom operators
-symbol `?` prec unary `-` = fun (a) => a == null
+symbol `?` prec unary `-` = fun (a) => a == null;
 
 ; use custom null-check operator
-let isAnswer = ?foo
-
-fun answer(x) uses (foo, bar, baz) => x + foo
+let isAnswer = ?foo;
 
 fun fib(n) {
     cond {
         case n < 2 => { n }
         else => { fib(n - 1) + fib(n - 2) }
-    }
-}
+    };
+};
 
-fun matchAny(arg, ...targets) => targets.any(
-    fun (item) uses arg => arg == item
-)
-
-ctor Pair(a, b) extends pairProto => {
-    self.first = a
-    self.second = b
-    self
-}
-
-let printingPair = Pair(10, 20)
-
-print(printingPair.display())
+let foo = [1, 2, 3, 4];
+let count = foo.len();
+let foo_it = foo.iter();
+let foo_rev = foo.iter_r();
+let one = foo_it.peek();
+let four = foo_it.skip(3);
+foo.reverse();
+let dud = foo_it.done();
+let median = (foo.1 + foo.2) / 2;
 ```
 
 #### Roadmap
  1. Add native print function support. **OK**
- 2. Refactor bytecode compiler & runtime into classes.
- 3. Add peephole optimization passes for bytecode:
+ 2. Refactor bytecode compiler & runtime into classes. **OK**
+ 3. Add peephole optimization passes for bytecode: **OK**
     - Place super instructions.
     - Remove non-trailing NOPs.
- 4. Implement native prototype support: This is crucial for lists!
- 5. Add lists.
- 6. Add simple method call support for lists.
+ 4. Implement native prototype support: This is crucial for tables!
+   - Add immutable string values and their string pool. **OK**
+   - Support string values in property access codegen. **OK**
+   - Fix driver to insert name-to-function properties. **OK**
+   - Create general list prototype. All native prototypes are sealed. **WIP**
+      - Getters: `len(), at(key)`
+      - Iterators: `iter(), iter_r(), peek(offset), done()`
+         - Add iterator values??
+   - Create registry methods for native prototypes e.g list's...
+   - Add `push_str` opcode support!
+   - Test tables in programs.
+ 6. Add missing operators e.g `&&`, `||`, and compound assignent operators.
+ 7. Add macro support:
+   - Add support for metatokens enclosed in \` and \`.
+   - Add parsing support for macros.
+   - Add macro substitution stage.

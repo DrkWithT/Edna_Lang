@@ -39,7 +39,7 @@ namespace Edna::Frontend {
     }
 
     [[nodiscard]] constexpr bool like_symbolic(char c) noexcept {
-        return like_disjoint(c, '.', '?', '%', '*', '/', '+', '-', '!', '=', '<', '>', '&', '|');
+        return like_disjoint(c, '@', '?', '%', '*', '/', '+', '-', '!', '=', '<', '>', '&', '|');
     }
 
 
@@ -113,9 +113,11 @@ namespace Edna::Frontend {
         }
 
         [[nodiscard]] Token lex_comment(std::string_view source) noexcept {
-            m_pos++; // skip leading semicolon...
-
+            // ? track and pass leading hash...
             const auto tk_begin = m_pos;
+
+            m_pos++;
+
             const auto tk_line = m_line;
             const auto tk_col = m_col;
 
@@ -334,7 +336,8 @@ namespace Edna::Frontend {
             }
 
             switch (peeked) {
-            case ';': return lex_comment(source);
+            case '#': return lex_comment(source);
+            case ';': return lex_single(source, TokenTag::semicolon);
             case ':': return lex_single(source, TokenTag::colon);
             case ',': return lex_single(source, TokenTag::comma);
             case '(': return lex_single(source, TokenTag::left_paren);

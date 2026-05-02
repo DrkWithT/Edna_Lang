@@ -1,14 +1,13 @@
 module;
 
 #include <cstdint>
-// #include <utility>
-// #include <type_traits>
 #include <array>
-// #include <print>
+#include <span>
 
 export module edna.runtime.handlers1;
 
 export import edna.runtime.meta;
+import edna.runtime.tables;
 
 namespace Edna::Runtime {
     export struct Handlers {
@@ -25,7 +24,7 @@ namespace Edna::Runtime {
 
         [[nodiscard]] static constexpr EvalStatus op_dup(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp++;
-            stack[c.sp] = stack[c.sp];
+            stack[c.sp] = stack[c.sp - 1];
             ip++;
 
             [[clang::musttail]]
@@ -50,8 +49,16 @@ namespace Edna::Runtime {
             return dispatch(c, ip, cvp, stack);
         }
 
+        [[nodiscard]] static constexpr EvalStatus op_push_callee(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+            c.sp++;
+            stack[c.sp] = stack[c.bp];
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
+        }
+
         [[nodiscard]] static constexpr EvalStatus op_push_global(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            // TODO: use argument of opcode as globals index.
             c.sp++;
             stack[c.sp] = c.globals.at(ip->arg);
             ip++;
@@ -60,9 +67,9 @@ namespace Edna::Runtime {
             return dispatch(c, ip, cvp, stack);
         }
 
-        [[nodiscard]] static constexpr EvalStatus op_push_callee(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+        [[nodiscard]] static constexpr EvalStatus push_str(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp++;
-            stack[c.sp] = stack[c.bp];
+            stack[c.sp] = Value::create_from_id(static_cast<int>(ip->arg), StrIdOpt {});
             ip++;
 
             [[clang::musttail]]
@@ -107,11 +114,82 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_get_prop(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            // ? NOTE: This indexing locates the target object to access something from.
+            const std::uint32_t base_slot = c.sp - static_cast<std::uint32_t>(ip->arg);
+            auto temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+
+            for (std::uint32_t key_offset = 0; key_offset < ip->arg; key_offset++) {
+                // ? NOTE: Start iterating here through the sequence of keys from the spot just above the target object...
+                if (temp_obj_ptr == nullptr) {
+                    return EvalStatus::bad_op_arg;
+                }
+
+                if (const Value temp_key = stack[base_slot + 1 + key_offset]; temp_key.hint() == ValueScalarHint::integer) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key.scalar());
+                    temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+                } else if (temp_key.hint() == ValueScalarHint::str_id) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key, true);
+                    temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+                } else {
+                    return EvalStatus::bad_op_arg;
+                }
+            }
+
+            c.sp = base_slot;
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_set_prop(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            // ? NOTE: This indexing locates the target object to access something from.
+            const std::uint32_t base_slot = c.sp - static_cast<std::uint32_t>(ip->arg) - 1;
+            auto temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+
+            for (std::uint32_t key_offset = 0; key_offset < ip->arg - 1; key_offset++) {
+                // ? NOTE: Start iterating here through the sequence of keys from the spot just above the target object...
+                if (const Value temp_key = stack[base_slot + 1 + key_offset]; temp_key.hint() == ValueScalarHint::integer) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key.scalar());
+                } else if (temp_key.hint() == ValueScalarHint::heap_id) {
+                    stack[base_slot] = temp_obj_ptr->get_property(std::addressof(c), temp_key, true);
+                } else {
+                    return EvalStatus::bad_op_arg;
+                }
+
+                if (const auto& next_target = stack[base_slot].hint() == ValueScalarHint::heap_id) {
+                    temp_obj_ptr = c.heap.at(stack[base_slot].scalar());
+                } else {
+                    return EvalStatus::bad_op_arg;
+                }
+
+                if (temp_obj_ptr == nullptr) {
+                    return EvalStatus::bad_op_arg;
+                }
+            }
+
+            // ? NOTE: layout of property-set for stack:
+            // * Example: object.foo.bar = 1234
+            // * Top: |  1234  | <-- SET: result.bar = 1234
+            // *      |  .bar  | <-- STOP access loop here!
+            // *      |  .foo  |
+            // * Btm: | object | <-- This is the base_slot. The SP reverts here.
+            if (const Value edit_key = stack[c.sp - 1], result = stack[c.sp]; edit_key.hint() == ValueScalarHint::integer) {
+                temp_obj_ptr->set_property(std::addressof(c), edit_key.scalar(), result);
+                stack[base_slot] = result;
+                c.sp = base_slot;
+            } else if (edit_key.hint() == ValueScalarHint::heap_id) {
+                temp_obj_ptr->set_property(std::addressof(c), edit_key, result, true);
+                stack[base_slot] = result;
+                c.sp = base_slot;
+            } else {
+                return EvalStatus::bad_op_arg;
+            }
+
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_pop(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
@@ -123,7 +201,29 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_make_array(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            return EvalStatus::unsupported_op;
+            const std::uint32_t base_pos = c.sp - static_cast<std::uint32_t>(ip->arg);
+            const std::span<Value> temps {
+                stack + base_pos + 1,
+                static_cast<std::uint32_t>(ip->arg),
+            };
+
+            if (auto array_table = new Table {}; array_table) {
+                for (int next_index = 0; const auto& v : temps) {
+                    array_table->set_property(std::addressof(c), next_index, v);
+                    next_index++;
+                }
+
+                array_table->set_prototype(stack[base_pos]);
+
+                stack[base_pos] = Value::create_from_id(c.heap.store(array_table), HeapIdOpt {});
+                c.sp = base_pos;
+                ip++;
+            } else {
+                return EvalStatus::alloc_fail;
+            }
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_make_object(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
@@ -177,16 +277,7 @@ namespace Edna::Runtime {
 
             if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() * rhs.as_double());
-            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
-                switch (lhs_hint) {
-                    case ValueScalarHint::boolean: case ValueScalarHint::integer:
-                        stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
-                        break;
-                    default:
-                        stack[c.sp] = Value::create_as_nan();
-                        break;
-                }
-            } else if ((lhs_hint == ValueScalarHint::boolean && rhs_hint == ValueScalarHint::integer) || (lhs_hint == ValueScalarHint::integer || rhs_hint == ValueScalarHint::boolean)) {
+            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint && lhs_hint == ValueScalarHint::integer) {
                 stack[c.sp] = Value::create_from_int(lhs.scalar() * rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
@@ -236,16 +327,7 @@ namespace Edna::Runtime {
 
             if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() + rhs.as_double());
-            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
-                switch (lhs_hint) {
-                    case ValueScalarHint::boolean: case ValueScalarHint::integer:
-                        stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
-                        break;
-                    default:
-                        stack[c.sp] = Value::create_as_nan();
-                        break;
-                }
-            } else if ((lhs_hint == ValueScalarHint::boolean && rhs_hint == ValueScalarHint::integer) || (lhs_hint == ValueScalarHint::integer && rhs_hint == ValueScalarHint::boolean)) {
+            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint && lhs_hint == ValueScalarHint::integer) {
                 stack[c.sp] = Value::create_from_int(lhs.scalar() + rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
@@ -262,16 +344,7 @@ namespace Edna::Runtime {
 
             if (const Value lhs = stack[c.sp], rhs = stack[c.sp + 1]; !lhs.is_nan() && !rhs.is_nan()) {
                 stack[c.sp] = Value::create_from_double(lhs.as_double() - rhs.as_double());
-            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint) {
-                switch (lhs_hint) {
-                    case ValueScalarHint::boolean: case ValueScalarHint::integer:
-                        stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
-                        break;
-                    default:
-                        stack[c.sp] = Value::create_as_nan();
-                        break;
-                }
-            } else if ((lhs_hint == ValueScalarHint::boolean && rhs_hint == ValueScalarHint::integer) || (lhs_hint == ValueScalarHint::integer && rhs_hint == ValueScalarHint::boolean)) {
+            } else if (const auto lhs_hint = lhs.hint(), rhs_hint = rhs.hint(); lhs_hint == rhs_hint && lhs_hint == ValueScalarHint::integer) {
                 stack[c.sp] = Value::create_from_int(lhs.scalar() - rhs.scalar());
             } else {
                 stack[c.sp] = Value::create_as_nan();
@@ -488,6 +561,7 @@ namespace Edna::Runtime {
             if (stack[c.sp].scalar() != 0) {
                 ip += ip->arg;
             } else {
+                c.sp--;
                 ip++;
             }
 
@@ -500,6 +574,7 @@ namespace Edna::Runtime {
             if (stack[c.sp].scalar() == 0) {
                 ip += ip->arg;
             } else {
+                c.sp--;
                 ip++;
             }
 
@@ -512,11 +587,13 @@ namespace Edna::Runtime {
         }
 
         [[nodiscard]] static constexpr EvalStatus op_call_fun(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
-            if (auto object = c.heap.at(static_cast<int>(stack[c.sp - static_cast<std::uint32_t>(ip->arg)].scalar())); object == nullptr) {
-                return EvalStatus::bad_op_arg;
-            } else if (auto chunk_addr = object->get_code_data(); !chunk_addr) {
-                return EvalStatus::bad_op_arg;
-            } else {
+            auto object = c.heap.at(
+                static_cast<int>(
+                    stack[c.sp - static_cast<std::uint32_t>(ip->arg)].scalar()
+                )
+            );
+
+            if (auto chunk_addr = object->get_code_data(); chunk_addr != nullptr) {
                 //? NOTE: If the VM object is callable, fetch its bytecode chunk as a pointer, saving / restoring caller state via the NATIVE stack.
                 // const Instruction* caller_ret_ip_v = ip + 1;
                 const auto chunk_p = reinterpret_cast<const Chunk*>(chunk_addr);
@@ -531,14 +608,20 @@ namespace Edna::Runtime {
                 stack[callee_bp_v - 1] = stack[c.sp];
                 c.sp = callee_bp_v - 1;
                 c.bp = caller_bp_v;
+            } else if (auto native_fp = object->get_native_fn_ptr(); native_fp != nullptr) {
+                c.status = native_fp(std::addressof(c), static_cast<std::uint8_t>(ip->arg));
+            } else {
+                return EvalStatus::bad_op_arg;
             }
 
             if (c.status != EvalStatus::pending) {
                 return c.status;
             }
 
+            ip++;
+
             [[clang::musttail]]
-            return dispatch(c, ip + 1, cvp, stack);
+            return dispatch(c, ip, cvp, stack);
         }
 
         [[nodiscard]] static constexpr EvalStatus op_call_native(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
@@ -572,11 +655,59 @@ namespace Edna::Runtime {
             return c.status;
         }
 
+        // ! CAVEAT: lower arg byte is always the local ID & higher arg byte is always the constant ID. However, the encoding only works for IDs 0-255 !
+        [[nodiscard]] static constexpr EvalStatus op_padd_lk(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+            c.sp++;
+
+            if (const Value local = stack[c.bp + static_cast<std::uint16_t>(ip->arg & 0xff)], konst = cvp[static_cast<std::uint16_t>(ip->arg & 0xff00) >> 8]; !local.is_nan() && !konst.is_nan()) {
+                stack[c.sp] = Value::create_from_double(local.as_double() + konst.as_double());
+            } else if (const auto lhs_hint = local.hint(), rhs_hint = konst.hint(); lhs_hint == rhs_hint) {
+                switch (lhs_hint) {
+                    case ValueScalarHint::integer:
+                        stack[c.sp] = Value::create_from_int(local.scalar() + konst.scalar());
+                        break;
+                    default:
+                        stack[c.sp] = Value::create_as_nan();
+                        break;
+                }
+            } else {
+                stack[c.sp] = Value::create_as_nan();
+            }
+
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
+        }
+
+        [[nodiscard]] static constexpr EvalStatus op_psub_lk(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+            c.sp++;
+
+            if (const Value local = stack[c.bp + static_cast<std::uint16_t>(ip->arg & 0xff)], konst = cvp[static_cast<std::uint16_t>(ip->arg & 0xff00) >> 8]; !local.is_nan() && !konst.is_nan()) {
+                stack[c.sp] = Value::create_from_double(local.as_double() - konst.as_double());
+            } else if (const auto lhs_hint = local.hint(), rhs_hint = konst.hint(); lhs_hint == rhs_hint) {
+                switch (lhs_hint) {
+                    case ValueScalarHint::integer:
+                        stack[c.sp] = Value::create_from_int(local.scalar() - konst.scalar());
+                        break;
+                    default:
+                        stack[c.sp] = Value::create_as_nan();
+                        break;
+                }
+            } else {
+                stack[c.sp] = Value::create_as_nan();
+            }
+
+            ip++;
+
+            [[clang::musttail]]
+            return dispatch(c, ip, cvp, stack);
+        }
+
         //* Handler dispatch table:
-        static constexpr std::array<handler_type, static_cast<std::size_t>(Opcode::last)> handlers_v1_funcs = {
+        static constexpr std::array<handler_type, static_cast<std::size_t>(Opcode::last)> handlers_funcs = {
             &op_nop,
-            &op_dup, &op_push_null, &op_push_bool, &op_push_callee,
-            &op_push_global, &op_push_const,
+            &op_dup, &op_push_null, &op_push_bool, &op_push_callee, &op_push_global, &push_str, &op_push_const,
             &op_get_local, &op_set_local,
             &op_get_prop, &op_set_prop,
             &op_pop,
@@ -586,12 +717,13 @@ namespace Edna::Runtime {
             &op_mod, op_mul, &op_div, op_add, &op_sub,
             &op_compare_eq, &op_compare_ne, &op_compare_lt, &op_compare_lte, &op_compare_gt, &op_compare_gte, &op_test,
             &op_jump, &op_jump_back, &op_jump_if, &op_jump_else,
-            &op_call_ctor, &op_call_fun, &op_call_native, &op_ret
+            &op_call_ctor, &op_call_fun, &op_call_native, &op_ret,
+            &op_padd_lk, &op_psub_lk,
         };
 
         static constexpr EvalStatus dispatch(EvalContext& context, const Instruction* ip, const Value* constants, Value* stack) {
             [[clang::musttail]]
-            return handlers_v1_funcs[static_cast<std::size_t>(ip->op)](context, ip, constants, stack);
+            return handlers_funcs[static_cast<std::size_t>(ip->op)](context, ip, constants, stack);
         }
     };
 }

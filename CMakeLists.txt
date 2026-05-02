@@ -15,12 +15,16 @@ target_sources(
     src/edna_impl/compile/context.ixx
     src/edna_impl/compile/expr_emit.ixx
     src/edna_impl/compile/stmt_emit.ixx
-    src/edna_impl/runtime/objects.ixx
-    src/edna_impl/runtime/value.ixx
+    src/edna_impl/compile/optimizer.ixx
+    src/edna_impl/compile/passes.ixx
+    src/edna_impl/runtime/string_pool.ixx
+    src/edna_impl/runtime/values.ixx
     src/edna_impl/runtime/bytecode.ixx
     src/edna_impl/runtime/context.ixx
-    src/edna_impl/runtime/callables.ixx
     src/edna_impl/runtime/meta.ixx
+    src/edna_impl/runtime/callables.ixx
+    src/edna_impl/runtime/tables.ixx
+    src/edna_impl/runtime/natives/list_funcs.ixx
     src/edna_impl/runtime/handlers1.ixx
     src/edna_impl/runtime/vm.ixx
 )

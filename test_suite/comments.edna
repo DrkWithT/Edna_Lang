@@ -1,0 +1,6 @@
+let foo = [1];
+# blah = blah
+
+# foo@0 = 0
+
+(foo@0 == 1);
