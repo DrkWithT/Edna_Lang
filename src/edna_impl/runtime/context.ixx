@@ -10,7 +10,8 @@ export import edna.runtime.bytecode;
 
 namespace Edna::Runtime {
     export struct EvalContext {
-        ObjectHeap<Value> heap;
+        ObjectHeap heap;
+        StringPool strings;
         std::vector<Value> globals;
         std::unique_ptr<Value[]> stack;
 
@@ -22,7 +23,7 @@ namespace Edna::Runtime {
         EvalStatus status;      //? VM dispatch status
 
         EvalContext(Program& program, std::size_t local_capacity)
-        : heap (std::move(program.pre_heap)), globals (std::move(program.globals)), stack {}, ip {program.chunks.back().code.data()}, cvp {program.chunks.back().consts.data()}, bp {1}, sp {1}, depth {1}, status {EvalStatus::pending} {
+        : heap (std::move(program.pre_heap)), strings (std::move(program.str_pool)), globals (std::move(program.globals)), stack {}, ip {program.chunks.back().code.data()}, cvp {program.chunks.back().consts.data()}, bp {1}, sp {1}, depth {1}, status {EvalStatus::pending} {
             stack = std::make_unique<Value[]>(local_capacity);
 
             //? 1. 2 nulls should be pushed for slots 0 and 1 since the implicit main & its null `selfArg` are not explicitly usable!

@@ -81,9 +81,10 @@ namespace Edna::Runtime {
             return m_items[str_id];
         }
 
+        // TODO: do not allow silent failures on destroy_at's.
         constexpr void destroy_at(int str_id) {
             if (str_id >= m_tenure_count && str_id < m_max_id) {
-                m_cells[str_id].clear();
+                m_items[str_id].clear();
                 m_free_list.push_back(str_id);
                 m_overhead -= string_overhead;
             }
