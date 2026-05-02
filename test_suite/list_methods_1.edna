@@ -11,8 +11,6 @@ let good = items @ at(1);
 # test OOB index yielding null
 let bad = items @ at(3);
 
-print(count);
-print(good);
-print(bad);
+print(count, good, bad);
 
 true;

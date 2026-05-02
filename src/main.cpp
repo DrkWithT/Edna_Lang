@@ -1,9 +1,12 @@
+#include <memory>
+#include <span>
 #include <string>
 #include <string_view>
-#include <span>
+#include <stdexcept>
 #include <sstream>
 #include <fstream>
 #include <chrono>
+#include <format>
 #include <print>
 
 import edna_impl;
@@ -20,10 +23,56 @@ namespace Edna {
         std::string_view name;
         std::string_view author;
         std::size_t heap_populate_capacity;
+        std::size_t string_populate_capacity;
         std::size_t local_capacity;
         std::uint16_t v_major;
         std::uint16_t v_minor;
         std::uint16_t v_patch;
+    };
+
+    class EditObjectProxy {
+    private:
+        Compile::CompileContext* m_compiler;        // ? contains preloaded heap, name-info tables, etc.
+        Runtime::ObjectBase* m_object;    // ? first refers to an empty object to build / edit
+
+    public:
+        explicit constexpr EditObjectProxy(Compile::CompileContext* compiler_p, Runtime::ObjectBase* object_p) noexcept
+        : m_compiler {compiler_p}, m_object {object_p} {}
+
+        template <typename Fn> requires (
+            std::is_base_of_v<Runtime::ObjectBase, Fn>
+            && (
+                std::is_same_v<Fn, Runtime::NativeCallable>
+                || std::is_same_v<Fn, Runtime::Callable>
+            )
+        )
+        [[nodiscard]] auto add_method(std::string name, std::unique_ptr<Fn> item) -> decltype(this) {
+            if (m_compiler == nullptr || m_object == nullptr) {
+                throw std::runtime_error {
+                    std::format("Cannot use finished EditObjectProxy at address {} !", reinterpret_cast<void*>(this))
+                };
+            }
+
+            std::unique_ptr<Runtime::ObjectBase> item_box = std::move(item);
+
+            const auto method_key = Runtime::Value::create_from_id(
+                static_cast<int>(m_compiler->record_str_symbol(std::move(name))->id),
+                Runtime::StrIdOpt {}
+            );
+            const auto method_handle_v = Runtime::Value::create_from_id(
+                static_cast<int>(m_compiler->record_global_symbol("", std::move(item_box))->id),
+                Runtime::HeapIdOpt {}
+            );
+
+            m_object->set_property(nullptr, method_key, method_handle_v, false);
+
+            return this;
+        }
+
+        constexpr void finish() noexcept {
+            m_compiler = nullptr;
+            m_object = nullptr;
+        }
     };
 
     class Driver {
@@ -71,7 +120,7 @@ namespace Edna {
 
     public:
         constexpr Driver(Configs cfg)
-        : m_lexer {}, m_compiler {cfg.heap_populate_capacity}, m_optimizer {}, m_info {cfg} {}
+        : m_lexer {}, m_compiler {cfg.heap_populate_capacity, cfg.string_populate_capacity}, m_optimizer {}, m_info {cfg} {}
 
         [[nodiscard]] constexpr const Configs& get_info() const noexcept {
             return m_info;
@@ -109,8 +158,18 @@ namespace Edna {
             m_optimizer.add_pass(tag, std::make_unique<OptPass>());
         }
 
-        void add_native_object(std::string name, std::unique_ptr<Runtime::ObjectBase<Runtime::Value>> object) noexcept {
+        void add_native_object(std::string name, std::unique_ptr<Runtime::ObjectBase> object) noexcept {
             m_compiler.record_global_symbol(name, std::move(object));
+        }
+
+        template <typename Object> requires (std::is_base_of_v<Runtime::ObjectBase, Object> && std::is_default_constructible_v<Object>)
+        [[nodiscard]] EditObjectProxy begin_object(std::string name) noexcept {
+            std::unique_ptr<Runtime::ObjectBase> opaque_box = std::make_unique<Object>();
+            auto proxy_object_ptr = opaque_box.get();
+
+            add_native_object(name, std::move(opaque_box));
+
+            return EditObjectProxy {std::addressof(m_compiler), proxy_object_ptr};
         }
 
         Runtime::EvalStatus execute_program(const std::string& main_file_path) {
@@ -160,20 +219,23 @@ namespace Edna {
 }
 
 
-[[nodiscard]] Edna::Runtime::EvalStatus native_print(void* opaque_context, std::uint8_t argc) {
-    auto vm_context = reinterpret_cast<Edna::Runtime::EvalContext*>(opaque_context);
-    const std::uint32_t callee_bp = vm_context->sp - argc;
+[[nodiscard]] Edna::Runtime::EvalStatus native_print(void* opaque, std::uint8_t argc) {
+    auto context = reinterpret_cast<Edna::Runtime::EvalContext*>(opaque);
+    const std::uint32_t callee_bp = context->sp - argc;
 
-    const std::span<Edna::Runtime::Value> arguments {vm_context->stack.get() + callee_bp + 1, static_cast<std::uint32_t>(argc)};
+    const std::span<Edna::Runtime::Value> arguments {
+        context->stack.get() + callee_bp + 1,
+        static_cast<std::uint32_t>(argc)
+    };
 
     for (const auto& value_ref : arguments) {
-        Edna::Runtime::display_value(vm_context->heap, value_ref);
+        Edna::Runtime::display_value(context->heap, value_ref);
         std::print(" ");
     }
     std::println("");
 
-    vm_context->sp = callee_bp - 1;
-    vm_context->stack[vm_context->sp] = Edna::Runtime::Value::create_from_dud();
+    context->sp = callee_bp - 1;
+    context->stack[context->sp] = Edna::Runtime::Value::create_from_dud();
 
     return Edna::Runtime::EvalStatus::pending;
 }
@@ -192,6 +254,7 @@ int main(int argc, char* argv[]) {
             .name = edna_ascii_art,
             .author = "DrkWithT",
             .heap_populate_capacity = 512,
+            .string_populate_capacity = 1024,
             .local_capacity = 4096,
             .v_major = 0,
             .v_minor = 1,
@@ -202,7 +265,7 @@ int main(int argc, char* argv[]) {
     const std::string_view arg_1 = argv[1];
 
     if (arg_1 == "info") {
-        const auto& [name, author, dud_0, dud_1, v_major, v_minor, v_patch] = driver.get_info();
+        const auto& [name, author, dud_0, dud_1, dud_2, v_major, v_minor, v_patch] = driver.get_info();
 
         std::println("\x1b[1;36m{}\x1b[0m\nBy: {}\nVersion: {}.{}.{}\n\nUsage:\nedna [info | dump | run] <args...>\n\tinfo: print info\n\tdump: print bytecode dump only\n\trun: run without bytecode dump\n", name, author, v_major, v_minor, v_patch);
 
@@ -275,6 +338,14 @@ int main(int argc, char* argv[]) {
     driver.add_optimizer_pass<Compile::TrimNOPs>(Compile::PassTag::trim_nops);
 
     driver.add_native_object("print", std::make_unique<Runtime::NativeCallable>(&native_print));
+
+    {
+        auto list_prototype_handle = driver.template begin_object<Runtime::Table>("__proto_list__");
+
+        list_prototype_handle.add_method("len", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_len))
+            ->add_method("at", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_at))
+            ->finish();
+    }
 
     if (arg_1 == "dump") {
         driver.allow_bytecode_dump(true);
