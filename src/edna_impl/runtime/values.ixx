@@ -11,6 +11,8 @@ module;
 
 export module edna.runtime.values;
 
+export import edna.runtime.string_pool;
+
 namespace Edna::Runtime {
     export enum class EvalStatus : std::uint8_t {
         pending,
@@ -335,7 +337,7 @@ namespace Edna::Runtime {
         }
     };
 
-    export void display_value(const ObjectHeap& heap, const Value& v) {
+    export void display_value(const ObjectHeap& heap, const StringPool& strings, const Value& v) {
         if (const auto v_hint = v.hint(); v_hint == Edna::Runtime::ValueScalarHint::real) {
             std::print("{}", v.as_double());
         } else if (const auto v_hint = v.hint(); v_hint == Edna::Runtime::ValueScalarHint::null) {
@@ -346,6 +348,8 @@ namespace Edna::Runtime {
             std::print("{}", v.scalar());
         } else if (v_hint == Edna::Runtime::ValueScalarHint::heap_id) {
             std::print("{}", heap.at(static_cast<int>(v.scalar()))->as_str(nullptr));
+        } else if (v_hint == Edna::Runtime::ValueScalarHint::str_id) {
+            std::print("{}", strings.cells().at(v.scalar()));
         } else if (v_hint == Edna::Runtime::ValueScalarHint::nan) {
             std::print("(QNaN)");
         } else {

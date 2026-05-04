@@ -67,7 +67,7 @@ namespace Edna::Runtime {
             return dispatch(c, ip, cvp, stack);
         }
 
-        [[nodiscard]] static constexpr EvalStatus push_str(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
+        [[nodiscard]] static constexpr EvalStatus op_push_str(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp++;
             stack[c.sp] = Value::create_from_id(static_cast<int>(ip->arg), StrIdOpt {});
             ip++;
@@ -707,7 +707,7 @@ namespace Edna::Runtime {
         //* Handler dispatch table:
         static constexpr std::array<handler_type, static_cast<std::size_t>(Opcode::last)> handlers_funcs = {
             &op_nop,
-            &op_dup, &op_push_null, &op_push_bool, &op_push_callee, &op_push_global, &push_str, &op_push_const,
+            &op_dup, &op_push_null, &op_push_bool, &op_push_callee, &op_push_global, &op_push_str, &op_push_const,
             &op_get_local, &op_set_local,
             &op_get_prop, &op_set_prop,
             &op_pop,

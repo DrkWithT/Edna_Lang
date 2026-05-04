@@ -211,7 +211,7 @@ namespace Edna {
 
             std::println("Runtime: \x1b[1;33m{}\x1b[0m ms", std::chrono::duration_cast<std::chrono::milliseconds>(running_time));
 
-            Runtime::display_value(vm.context().heap, vm.result());
+            Runtime::display_value(vm.context().heap, vm.context().strings, vm.result());
 
             return vm.context().status;
         }
@@ -229,7 +229,7 @@ namespace Edna {
     };
 
     for (const auto& value_ref : arguments) {
-        Edna::Runtime::display_value(context->heap, value_ref);
+        Edna::Runtime::display_value(context->heap, context->strings, value_ref);
         std::print(" ");
     }
     std::println("");

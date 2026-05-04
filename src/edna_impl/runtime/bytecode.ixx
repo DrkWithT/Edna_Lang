@@ -147,7 +147,7 @@ namespace Edna::Runtime {
         for (auto constant_id = 0; const auto& constant_v : chunk_constants) {
             std::println("constant {}:", constant_id);
 
-            display_value(program_heap, constant_v);
+            display_value(program_heap, program_strings, constant_v);
 
             std::println("");
 
