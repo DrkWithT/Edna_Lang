@@ -71,12 +71,13 @@ let median = (foo.1 + foo.2) / 2;
    - Add immutable string values and their string pool. **OK**
    - Support string values in property access codegen. **OK**
    - Fix driver to insert name-to-function properties. **OK**
-   - Create general list prototype. All native prototypes are sealed. **WIP**
-      - Getters: `len(), at(key)`
+   - Create registry methods for native prototypes e.g list's... **OK**
+   - Add `push_str` opcode support! **OK**
+   - Create general list prototype. All native prototypes are sealed. **DELAYED**
+      - Getters: `len(), at(key)` **OK**
+      - HOFs: `filter(), every(), some(), reverse(), map(), collect()`
       - Iterators: `iter(), iter_r(), peek(offset), done()`
          - Add iterator values??
-   - Create registry methods for native prototypes e.g list's...
-   - Add `push_str` opcode support!
    - Test tables in programs.
  6. Add missing operators e.g `&&`, `||`, and compound assignent operators.
  7. Add macro support:

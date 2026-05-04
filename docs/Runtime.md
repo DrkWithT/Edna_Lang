@@ -41,7 +41,8 @@
  - DUP: Push duplicate of top stack value: `STACK[SP + 1] = STACK[SP]`
  - PUSH_NULL: Pushes null value to the temporary stack.
  - PUSH_BOOL: Args `flag = 0 | 1`. Pushes a boolean to the temporary stack.
- - PUSH_SELF: Push callee / instance self-reference: Stack `<self>(CALLEE_BP - 1) <callee>(CALLEE_BP) <locals...>` to `... <self>`
+ - PUSH_CALLEE: Push callee / instance self-reference: Stack `<self>(CALLEE_BP - 1) <callee>(CALLEE_BP) <locals...>` to `... <self>`
+ - PUSH 
    - **NOTE:** The callee reference always equals the `self` argument for plain functions.
  - PUSH_CONST: Args `const-id`, Stack: `...` to `<const-temp>`
  - GET_LOCAL: Args `local-offset`, Stack: `...` to `<temp>`
@@ -72,7 +73,10 @@
  - JUMP_GTE: Args: `<pops>`, Stack: `<lhs>, <rhs>` to `<temp-bool>`
  - CALL_CTOR: Arg `<arg-count>`, Stack: `<this-argument: object {}> <callee> <args...>` to `<temp-object>`
  - CALL_FUN: Args: `<arg-count>`, Stack: `<this-argument: object {...}> <callee> <args...>` to `<temp>`
+ - CALL_NATIVE: ...
  - RET
+ - PADD_LK
+ - PSUB_LK
  - ~~THROW_OBJ~~
  - ~~CATCH_OBJ~~
 
