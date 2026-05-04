@@ -242,7 +242,7 @@ namespace Edna::Compile {
             if (auto key_locus_it = scopes.front().locations.find(key_lexeme); key_locus_it != scopes.front().locations.end()) {
                 return key_locus_it->second;
             } else {
-                const auto next_str_id = static_cast<std::uint16_t>(str_pool.store(key_contents));
+                const auto next_str_id = static_cast<std::uint16_t>(str_pool.store(key_contents.substr(1, key_contents.length() - 2)));
 
                 SymbolInfo result_locus {
                     .id = next_str_id,

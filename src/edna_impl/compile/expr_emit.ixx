@@ -116,8 +116,10 @@ namespace Edna::Compile {
                     c.encode_instruction(Runtime::Opcode::push_const, real_locator->id);
                 } break;
                 case Frontend::TokenTag::literal_string: {
-                    c.report_error("String literals are not yet supported.", expr_line);
-                    return false; // todo
+                    auto str_locus_it = c.record_str_symbol(literal_lexeme);
+
+                    c.encode_instruction(Runtime::Opcode::push_str, str_locus_it->id);
+                    return true;
                 }
                 case Frontend::TokenTag::literal_esc_string: {
                     c.report_error("Escaped string literals are not yet supported.", expr_line);
