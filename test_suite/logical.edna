@@ -1,0 +1,8 @@
+let is_single_digit = fun (x) => x >= 0 && x < 10;
+
+let is_meme_number = fun (y) => y == 69 || y == 420;
+
+print(is_single_digit(2), is_single_digit(69));
+print(is_meme_number(2), is_meme_number(69));
+
+true;

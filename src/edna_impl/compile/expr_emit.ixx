@@ -527,14 +527,50 @@ namespace Edna::Compile {
 
         [[nodiscard]] bool emit_logical_and(CompileContext& c, const Frontend::ExprNode& lhs, const Frontend::ExprNode& rhs, const std::string& source) {
             const FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<bool> within_call_guard {&c.within_call, false};
 
-            return false; // todo: implement!
+            if (!c.emit_expr(lhs, source)) {
+                return false;
+            }
+
+            // ? Emit jump_else & truthy pop, preserving stack invariant: all exprs become 1 value. If LHS is false, it's the result by short circuiting. Otherwise, RHS is the result.
+            const std::uint16_t skip_jump_pos = c.chunks.back().code.size();
+            c.encode_instruction(Runtime::Opcode::jump_else, 0);
+            c.encode_instruction(Runtime::Opcode::pop, 1);
+
+            if (!c.emit_expr(rhs, source)) {
+                return false;
+            }
+
+            // ? No NOPs are emitted, as there's an Opcode::ret ending each function at least!
+            const std::uint16_t end_and_pos = c.chunks.back().code.size();
+            c.chunks.back().code.at(skip_jump_pos).arg = end_and_pos - skip_jump_pos;
+
+            return true;
         }
 
         [[nodiscard]] bool emit_logical_or(CompileContext& c, const Frontend::ExprNode& lhs, const Frontend::ExprNode& rhs, const std::string& source) {
             const FlagGuard<int> key_count_guard {&c.key_count, 0};
+            const FlagGuard<bool> within_call_guard {&c.within_call, false};
 
-            return false; // todo: implement!
+            if (!c.emit_expr(lhs, source)) {
+                return false;
+            }
+
+            // ? Emit jump_else & truthy pop, preserving stack invariant: all exprs become 1 value. If LHS is false, it's the result by short circuiting. Otherwise, RHS is the result.
+            const std::uint16_t skip_jump_pos = c.chunks.back().code.size();
+            c.encode_instruction(Runtime::Opcode::jump_if, 0);
+            c.encode_instruction(Runtime::Opcode::pop, 1);
+
+            if (!c.emit_expr(rhs, source)) {
+                return false;
+            }
+
+            // ? No NOPs are emitted, as there's an Opcode::ret ending each function at least!
+            const std::uint16_t end_or_pos = c.chunks.back().code.size();
+            c.chunks.back().code.at(skip_jump_pos).arg = end_or_pos - skip_jump_pos;
+
+            return true;
         }
 
     public:

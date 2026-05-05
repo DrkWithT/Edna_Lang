@@ -652,7 +652,7 @@ namespace Edna::Frontend {
             ExprPtr lhs = parse_compare(lexer, source);
 
             while (!at_eof()) {
-                if (!match_token(TokenTag::op_or)) {
+                if (!match_token(TokenTag::op_and)) {
                     break;
                 }
 
@@ -769,7 +769,7 @@ namespace Edna::Frontend {
 
             const ParseGuard guard {m_infos, expr_stmt_lexeme_begin, std::to_underlying(StmtTag::expr_stmt), ExprInfoOpt {}};
 
-            ExprPtr lhs_expr = parse_call(lexer, source);
+            ExprPtr lhs_expr = parse_or(lexer, source);
 
             if (match_token(TokenTag::op_assign)) {
                 consume(lexer, source);
