@@ -73,14 +73,15 @@ let median = (foo.1 + foo.2) / 2;
    - Fix driver to insert name-to-function properties. **OK**
    - Create registry methods for native prototypes e.g list's... **OK**
    - Add `push_str` opcode support! **OK**
-   - Create general list prototype. All native prototypes are sealed. **DELAYED**
+ 6. Add missing operators e.g `&&`, `||`, and arithmetic assignment operators. **DONE**
+   - `+=, -=, *=, /=`
+ 7. Create general list prototype. All native prototypes are sealed. **DELAYED**
       - Getters: `len(), at(key)` **OK**
-      - HOFs: `filter(), every(), some(), reverse(), map(), collect()`
       - Iterators: `iter(), iter_r(), peek(offset), done()`
+      - HOFs: `filter(), every(), some(), reverse(), map(), collect()`
          - Add iterator values??
-   - Test tables in programs.
- 6. Add missing operators e.g `&&`, `||`, and compound assignent operators.
- 7. Add macro support:
+ 8. Support tables with properties.
+ 9. Add macro support:
    - Add support for metatokens enclosed in \` and \`.
    - Add parsing support for macros.
    - Add macro substitution stage.

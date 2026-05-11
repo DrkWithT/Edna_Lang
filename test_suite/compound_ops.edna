@@ -1,0 +1,19 @@
+# test operators *=, /=, +=, -=
+
+# local variable case
+let a = 40;
+
+a += 2;
+
+print(a);
+
+# member access case
+let items = [40];
+
+items @ 0 += 2;
+
+items @ 0 += items @ 0;
+
+print(items @ 0);
+
+true;

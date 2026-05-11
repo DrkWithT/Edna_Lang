@@ -35,7 +35,7 @@
 <var> = ( "let" | "mut" ) ( <identifier> "=" <expr> )+ ";"
 <operator-literal> = <OP_SYMBOLS>+
 <symbol-def> = "symbol" <operator-literal> "prec" <operator-literal> "=" <lambda> ";"
-<expr-stmt> = "do" <call> ( "=" <expr> )? ";"
+<expr-stmt> = <call> ( ("=" | "+=" | "-=" | "*=" | "/=") <expr> )? ";"
 ```
 
 #### Future Expressions
