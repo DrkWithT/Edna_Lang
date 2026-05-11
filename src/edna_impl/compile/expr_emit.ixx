@@ -666,17 +666,28 @@ namespace Edna::Compile {
     public:
         [[nodiscard]] bool emit(CompileContext& c, const Frontend::ExprNode& expr, const std::string& source) override {
             if (c.needs_prepass) {
+                // ? NOTE: These compound assignments are just dest = dest OP other e.g x += 2; equivalent to x = x + 2; ... So for the stack VM, the RHS must be computed with the OLD LHS before being stored in the LHS location.
                 return true;
             }
 
             const auto& [expr_data, expr_line, expr_tag] = expr;
-            const auto& [dest_expr, source_expr] = std::get<Frontend::Assign>(expr_data);
+            const auto& [dest_expr, source_expr, assign_op] = std::get<Frontend::Assign>(expr_data);
+
+            const auto compound_opcode = ([] (Frontend::AstOp ast_op) constexpr noexcept {
+                switch (ast_op) {
+                    case Frontend::AstOp::ast_multiply_assign: return Runtime::Opcode::mul;
+                    case Frontend::AstOp::ast_divide_assign: return Runtime::Opcode::div;
+                    case Frontend::AstOp::ast_add_assign: return Runtime::Opcode::add;
+                    case Frontend::AstOp::ast_sub_assign: return Runtime::Opcode::sub;
+                    default: return Runtime::Opcode::nop;
+                }
+            })(assign_op);
 
             {
                 const FlagGuard<bool> call_guard {&c.within_call, false};
                 const FlagGuard<bool> assign_guard {&c.within_assignable, true};
 
-                if (dest_expr->tag == Frontend::ExprTag::atom) {
+                if (compound_opcode == Runtime::Opcode::nop && dest_expr->tag == Frontend::ExprTag::atom) {
                     const auto& [dest_name_token] = std::get<Frontend::Atom>(dest_expr->data);
 
                     if (dest_name_token.tag != Frontend::TokenTag::identifier) {
@@ -693,7 +704,7 @@ namespace Edna::Compile {
                     } else {
                         return false;
                     }
-                } else if (dest_expr->tag == Frontend::ExprTag::lhs) {
+                } else if (compound_opcode == Runtime::Opcode::nop && dest_expr->tag == Frontend::ExprTag::lhs) {
                     if (!c.emit_expr(*dest_expr, source)) {
                         return false;
                     }
@@ -707,9 +718,56 @@ namespace Edna::Compile {
                     }
 
                     c.encode_instruction(Runtime::Opcode::set_prop, c.key_count);
+                } else if (compound_opcode != Runtime::Opcode::nop && dest_expr->tag == Frontend::ExprTag::atom) {
+                    const auto& [dest_name_token] = std::get<Frontend::Atom>(dest_expr->data);
+
+                    if (dest_name_token.tag != Frontend::TokenTag::identifier) {
+                        c.report_error("Destination of to-atom assignment must target a name.", dest_name_token.line);
+                        return false;
+                    }
+
+                    {
+                        const FlagGuard<bool> comp_assign_atom_guard {&c.within_assignable, false};
+
+                        if (!c.emit_expr(*source_expr, source)) {
+                            return false;
+                        }
+
+                        if (auto dest_location = c.lookup_local_symbol(dest_name_token.as_string_from(source)); dest_location) {
+                            c.encode_instruction(Runtime::Opcode::get_local, dest_location->id);
+                        } else {
+                            return false;
+                        }
+                    }
+
+                    c.encode_instruction(compound_opcode);
+
+                    if (auto dest_location = c.lookup_local_symbol(dest_name_token.as_string_from(source)); dest_location) {
+                        c.encode_instruction(Runtime::Opcode::set_local, dest_location->id);
+                    } else {
+                        return false;
+                    }
+                } else if (compound_opcode != Runtime::Opcode::nop && dest_expr->tag == Frontend::ExprTag::lhs) {
+                    if (!c.emit_expr(*dest_expr, source)) {
+                        return false;
+                    }
+
+                    {
+                        const FlagGuard<bool> assign_member_rhs_guard {&c.within_assignable, false};
+
+                        if (!c.emit_expr(*dest_expr, source)) {
+                            return false;
+                        }
+
+                        if (!c.emit_expr(*source_expr, source)) {
+                            return false;
+                        }
+                    }
+
+                    c.encode_instruction(compound_opcode);
+                    c.encode_instruction(Runtime::Opcode::set_prop, c.key_count);
                 } else {
                     c.report_error("Found invalid assignment LHS- only identifier atoms or key / property accesses are valid.", expr_line);
-
                     return false;
                 }
 
