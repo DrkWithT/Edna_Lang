@@ -771,23 +771,23 @@ namespace Edna::Frontend {
 
             ExprPtr lhs_expr = parse_or(lexer, source);
 
-            if (match_token(TokenTag::op_assign)) {
-                consume(lexer, source);
+            const auto assign_operation = ([] (TokenTag tag) constexpr noexcept {
+                switch (tag) {
+                    case TokenTag::op_assign: return AstOp::ast_assign;
+                    case TokenTag::op_mult_assign: return AstOp::ast_multiply_assign;
+                    case TokenTag::op_div_assign: return AstOp::ast_divide_assign;
+                    case TokenTag::op_plus_assign: return AstOp::ast_add_assign;
+                    case TokenTag::op_minus_assign: return AstOp::ast_sub_assign;
+                    default: return AstOp::ast_noop;
+                }
+            })(m_current.tag);
 
-                ExprPtr rhs_expr = parse_or(lexer, source);
-
+            if (assign_operation == AstOp::ast_noop) {
                 consume(lexer, source, "Expected ';' after expression statement.", TokenTag::semicolon);
 
                 return std::make_unique<StmtNode>(StmtNode {
                     .data = ExprStmt {
-                        .inner = std::make_unique<ExprNode>(ExprNode {
-                            .data = Assign {
-                                .dest = std::move(lhs_expr),
-                                .src = std::move(rhs_expr)
-                            },
-                            .line = expr_stmt_line,
-                            .tag = ExprTag::assign
-                        })
+                        .inner = std::move(lhs_expr)
                     },
                     .line = expr_stmt_line,
                     .trailing = false,
@@ -795,11 +795,22 @@ namespace Edna::Frontend {
                 });
             }
 
+            consume(lexer, source);
+
+            ExprPtr rhs_expr = parse_or(lexer, source);
             consume(lexer, source, "Expected ';' after expression statement.", TokenTag::semicolon);
 
             return std::make_unique<StmtNode>(StmtNode {
                 .data = ExprStmt {
-                    .inner = std::move(lhs_expr)
+                    .inner = std::make_unique<ExprNode>(ExprNode {
+                        .data = Assign {
+                            .dest = std::move(lhs_expr),
+                            .src = std::move(rhs_expr),
+                            .op = assign_operation,
+                        },
+                        .line = expr_stmt_line,
+                        .tag = ExprTag::assign
+                    })
                 },
                 .line = expr_stmt_line,
                 .trailing = false,

@@ -316,6 +316,10 @@ int main(int argc, char* argv[]) {
     driver.map_lexical("&&", Frontend::TokenTag::op_and);
     driver.map_lexical("||", Frontend::TokenTag::op_or);
     driver.map_lexical("=", Frontend::TokenTag::op_assign);
+    driver.map_lexical("*=", Frontend::TokenTag::op_mult_assign);
+    driver.map_lexical("/=", Frontend::TokenTag::op_div_assign);
+    driver.map_lexical("+=", Frontend::TokenTag::op_plus_assign);
+    driver.map_lexical("-=", Frontend::TokenTag::op_minus_assign);
     driver.map_lexical("=>", Frontend::TokenTag::arrow);
     driver.map_lexical("@", Frontend::TokenTag::locusor);
     driver.map_lexical("...", Frontend::TokenTag::ellipses);

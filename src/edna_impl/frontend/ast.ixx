@@ -54,6 +54,10 @@ namespace Edna::Frontend {
         ast_and,
         ast_or,
         ast_assign,
+        ast_multiply_assign,
+        ast_divide_assign,
+        ast_add_assign,
+        ast_sub_assign,
         ast_other,
         last
     };
@@ -162,6 +166,7 @@ namespace Edna::Frontend {
     struct Assign {
         ExprPtr dest;
         ExprPtr src;
+        AstOp op;
     };
 
 

@@ -38,6 +38,10 @@ namespace Edna::Frontend {
         op_lte,
         op_gte,
         op_assign,
+        op_mult_assign,     // For `*=` operator
+        op_div_assign,      // For `/=` operator
+        op_plus_assign,     // For `+=` operator
+        op_minus_assign,    // For `-=` operator
         op_and,
         op_or,
         op_other,
