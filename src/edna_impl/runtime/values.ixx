@@ -42,7 +42,6 @@ namespace Edna::Runtime {
         boolean,
         integer,
         real,
-        local_id,
         heap_id,
         str_id,
         last
@@ -139,10 +138,6 @@ namespace Edna::Runtime {
             return Value {ValueScalarOpt {}, ValueScalarHint::integer, i};
         }
 
-        [[nodiscard]] static constexpr Value create_from_id(int i, [[maybe_unused]] LocalIdOpt opt) noexcept {
-            return Value {ValueScalarOpt {}, ValueScalarHint::local_id, i};
-        }
-
         [[nodiscard]] static constexpr Value create_from_id(int i, [[maybe_unused]] HeapIdOpt opt) noexcept {
             return Value {ValueScalarOpt {}, ValueScalarHint::heap_id, i};
         }
@@ -200,6 +195,15 @@ namespace Edna::Runtime {
 
         constexpr void load_aliased_data([[maybe_unused]] ValueScalarOpt opt, ValueScalarHint hint, int scalar) noexcept {
             data = data_from_bits_type(encode_bits_type(hint, scalar));
+        }
+
+        explicit constexpr operator bool(this auto&& self) noexcept {
+            switch (self.hint()) {
+                case ValueScalarHint::boolean: case ValueScalarHint::integer: return self.scalar() != 0;
+                case ValueScalarHint::real: return self.as_double() != 0.0;
+                case ValueScalarHint::heap_id: case ValueScalarHint::str_id: return true;
+                default: return false;
+            }
         }
     };
 

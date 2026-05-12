@@ -87,13 +87,7 @@ namespace Edna::Runtime {
 
         [[nodiscard]] static constexpr EvalStatus op_get_local(EvalContext& c, const Instruction* ip, const Value* cvp, Value* stack) {
             c.sp++;
-
-            if (const Value temp = stack[c.bp + ip->arg]; temp.hint() == ValueScalarHint::local_id) {
-                stack[c.sp] = stack[c.bp + temp.scalar()];
-            } else {
-                stack[c.sp] = temp;
-            }
-
+            stack[c.sp] = stack[c.bp + ip->arg];
             ip++;
 
             [[clang::musttail]]
@@ -369,7 +363,6 @@ namespace Edna::Runtime {
                     break;
                 case ValueScalarHint::boolean:
                 case ValueScalarHint::integer:
-                case ValueScalarHint::local_id:
                 case ValueScalarHint::heap_id:
                     stack[c.sp] = Value::create_from_bool(lhs.scalar() == rhs.scalar());
                     break;
@@ -399,7 +392,6 @@ namespace Edna::Runtime {
                     break;
                 case ValueScalarHint::boolean:
                 case ValueScalarHint::integer:
-                case ValueScalarHint::local_id:
                 case ValueScalarHint::heap_id:
                     stack[c.sp] = Value::create_from_bool(lhs.scalar() != rhs.scalar());
                     break;

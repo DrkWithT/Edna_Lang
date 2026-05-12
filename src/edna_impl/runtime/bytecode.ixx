@@ -131,7 +131,6 @@ namespace Edna::Runtime {
             "boolean",
             "integer",
             "real",
-            "local_id",
             "heap_id",
             "str_id"
         };
