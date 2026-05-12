@@ -77,8 +77,7 @@ let median = (foo.1 + foo.2) / 2;
    - `+=, -=, *=, /=`
  7. Create general list prototype. All native prototypes are sealed. **DELAYED**
       - Getters: `len(), at(key)` **OK**
-      - Iterators: `iter(), iter_r(), peek(offset), done()`
-      - HOFs: `filter(), every(), some(), reverse(), map(), collect()`
+      - Self methods: ~~find(arg)~~, find_if(fn), every(fn), some(fn), ~~push(arg, ...rest)~~, ~~pop(n)~~, slice(begin, end), filter(fn), map(fn), ~~reverse()~~
          - Add iterator values??
  8. Support tables with properties.
  9. Add macro support:

@@ -1,0 +1,15 @@
+# test mutating list methods
+
+let nums = [1, 2, 3];
+
+nums @ push(3, 2, 1);
+
+nums @ pop(3);
+nums @ push(4);
+
+nums @ rev();
+
+# must be 4 3 2 1
+print(nums @ 0, nums @ 1, nums @ 2, nums @ 3);
+
+true;

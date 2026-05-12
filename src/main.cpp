@@ -346,8 +346,13 @@ int main(int argc, char* argv[]) {
     {
         auto list_prototype_handle = driver.template begin_object<Runtime::Table>("__proto_list__");
 
-        list_prototype_handle.add_method("len", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_len))
+        list_prototype_handle
+            .add_method("len", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_len))
             ->add_method("at", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_at))
+            ->add_method("find", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_find))
+            ->add_method("push", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_push))
+            ->add_method("pop", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_pop))
+            ->add_method("rev", std::make_unique<Runtime::NativeCallable>(&Runtime::Natives::list_rev))
             ->finish();
     }
 

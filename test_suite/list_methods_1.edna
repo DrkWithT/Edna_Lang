@@ -1,4 +1,4 @@
-# test simplest list methods: len(), at()
+# test observing / getter-like list methods:
 
 let items = [null, true, false];
 
@@ -11,6 +11,10 @@ let good = items @ at(1);
 # test OOB index yielding null
 let bad = items @ at(3);
 
-print(count, good, bad);
+let found = items @ find(true);
+
+let unfound = items @ find(1);
+
+print(count, good, bad, found, unfound);
 
 true;
