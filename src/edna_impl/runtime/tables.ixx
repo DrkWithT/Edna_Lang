@@ -32,6 +32,10 @@ namespace Edna::Runtime {
         constexpr Table() noexcept
         : m_properties {}, m_items {}, m_prototype {} {}
 
+        [[nodiscard]] items& indexables() noexcept {
+            return m_items;
+        }
+
         [[nodiscard]] const items& indexables() const noexcept {
             return m_items;
         }
